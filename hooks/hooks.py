@@ -25,6 +25,9 @@ from charmhelpers.core.hookenv import (
 )
 
 
+from charmhelpers.contrib.openstack import IdentityServiceContext
+
+
 hooks = Hooks()
 
 
@@ -68,6 +71,19 @@ def glance_sync_program(sstream_url, max_, ):
         tmirror = glance.GlanceMirror(config=config, objectstore=store)
         tmirror.sync(smirror, path={path})
     """)
+
+
+@hooks.hook('identity-service-relation-changed')
+def identity_service_changed():
+    """ Create / update sync script template when ID service changes
+    TODOs:
+    - handle other ID service hook events
+    """
+    id_context = IdentityServiceContext()
+    id_dict = id_context()
+    program_template = glance_sync_program("FIXME_URL")
+    program = program_template.format(**id_dict)
+    log("Template sync program is '{program}'".format(program=program))
 
 
 @hooks.hook('install')
