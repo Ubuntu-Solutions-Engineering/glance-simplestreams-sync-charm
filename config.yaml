@@ -1,14 +1,13 @@
 options:
   mirror_list:
     type: string
-    default: [{"url": "http:cloud-images.ubuntu.com/releases/"}]
+    default: [{"url": "http://cloud-images.ubuntu.com/releases/",
+               "name_prefix": "ubuntu:released",
+               "path": "streams/v1/index.sjson", "max": 1}]
     description: >
-      YAML-formatted list of simplestreams mirrors. Defaults to downloading the
-      released images from cloud-images.ubuntu.com.
-  keep:
-    type: int
-    default: 1
-    description: "The maximum number of items to keep from each stream."
+      YAML-formatted list of simplestreams mirrors and their configuration
+      properties. Defaults to downloading the released images from
+      cloud-images.ubuntu.com.
   run:
     type: boolean
     default: False
