@@ -70,7 +70,7 @@ def glance_sync_program(sstream_url, max_, ):
 
         tmirror = glance.GlanceMirror(config=config, objectstore=store)
         tmirror.sync(smirror, path={path})
-    """
+    """)
 
 
 @hooks.hook('install')
