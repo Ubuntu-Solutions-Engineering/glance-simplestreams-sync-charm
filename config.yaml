@@ -1,0 +1,15 @@
+options:
+  mirror_list:
+    type: string
+    default: [{"url": "http:cloud-images.ubuntu.com/releases/"}]
+    description: >
+      YAML-formatted list of simplestreams mirrors. Defaults to downloading the
+      released images from cloud-images.ubuntu.com.
+  keep:
+    type: int
+    default: 1
+    description: "The maximum number of items to keep from each stream."
+  run:
+    type: boolean
+    default: False
+    description: "Should the sync be running or not?"

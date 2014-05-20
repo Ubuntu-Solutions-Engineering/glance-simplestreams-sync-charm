@@ -1,0 +1,15 @@
+name: glance-simplestreams-sync
+summary: Sync data from simplestreams into glance.
+maintainer: Tycho Andersen <Tycho.Andersen@canonical.com>
+description: |
+  Automatically keep your glance mirror in sync with any (multiple) source(s)
+  of simplestreams data.
+categories:
+  - misc
+subordinate: false
+provides:
+  provides-relation:
+    interface: interface-name
+requires:
+  requires-relation:
+    interface: keystone
