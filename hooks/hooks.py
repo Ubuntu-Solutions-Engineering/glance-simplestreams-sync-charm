@@ -11,7 +11,6 @@ import sys
 import subprocess
 import yaml
 
-from simplestreams.mirror import glance
 from textwrap import dedent
 
 from charmhelpers.fetch import apt_install
@@ -40,19 +39,17 @@ def glance_sync_program(sstream_url, max_, ):
     #   - allow people to specify their own policy, since they can specify
     #     their own mirrors.
     #   - potentially allow people to specify backup mirrors?
+
     return dedent("""
         import os
-        from simplestreams.mirrors import glance, swift, UrlMirrorReader
+        from simplestreams.mirrors import glance, UrlMirrorReader
+        from simplestreams.objectstores.swift import SwiftObjectStore
 
-        os.environ['OS_AUTH_URL'] = {auth_url}
-        os.environ['OS_USERNAME'] = {auth_username}
-
-        # could instead use OS_PASSWORD here, but presumably we want to get an
-        # auth token via juju/keystone magic.
-        os.environ['OS_AUTH_TOKEN'] = {auth_token}
-
-        # could instead use OS_TENANT_ID here, i'm not sure which is better.
-        os.environ['OS_TENANT_NAME'] = {auth_tenant_name}
+        a_url = '%s://%s:%s/v2.0' % ({auth_protocol}, {auth_host}, {auth_port})
+        os.environ['OS_AUTH_URL'] = a_url
+        os.environ['OS_USERNAME'] = {admin_user}
+        os.environ['OS_PASSWORD'] = {admin_password}
+        os.environ['OS_TENANT_ID'] = {admin_tenant_id}
 
         def policy(content, path):
             if args.path.endswith('sjson'):
@@ -66,7 +63,7 @@ def glance_sync_program(sstream_url, max_, ):
         # juju looks in simplestreams/data/* in swift to figure out which
         # images to deploy, so this path isn't really configurable even though
         # it is.
-        store = swift.SwiftObjectStore('simplestreams/data/')
+        store = SwiftObjectStore('simplestreams/data/')
 
         tmirror = glance.GlanceMirror(config=config, objectstore=store)
         tmirror.sync(smirror, path={path})
