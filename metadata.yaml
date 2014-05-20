@@ -7,9 +7,6 @@ description: |
 categories:
   - misc
 subordinate: false
-provides:
-  provides-relation:
-    interface: interface-name
 requires:
-  requires-relation:
+  identity-service:
     interface: keystone
