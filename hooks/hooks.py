@@ -60,7 +60,7 @@ def glance_sync_program(sstream_url, max_, ):
             else:
                 return content
 
-        config = {'max_items': {max}, 'keep' False, 'cloud_name': {cloud_name}}
+        config = {'max_items': {max}, 'keep': False, 'cloud_name': {cloud_name}}
         smirror = UrlMirrorReader({url}, policy=policy)
 
         # juju looks in simplestreams/data/* in swift to figure out which
