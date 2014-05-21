@@ -100,9 +100,9 @@ def install():
     log('end install hook.')
 
 
-@hooks.hook('config_changed')
+@hooks.hook('config-changed')
 def config_changed():
-    log('begin config_changed hook.')
+    log('begin config-changed hook.')
 
     # TODO: actually install the cron job :-)
     if not config('run'):
