@@ -52,8 +52,8 @@ def glance_sync_program():
         from simplestreams.objectstores.swift import SwiftObjectStore
         from simplestreams.util import read_signed, path_from_mirror_url
 
-        a_url = '%s://%s:%s/v2.0' % ({auth_protocol}, {auth_host}, {auth_port})
-        os.environ['OS_AUTH_URL'] = a_url
+        auth_url = '%s://%s:%s/v2.0' % ({auth_protocol}, {auth_host}, {auth_port})
+        os.environ['OS_AUTH_URL'] = auth_url
         os.environ['OS_USERNAME'] = {admin_user}
         os.environ['OS_PASSWORD'] = {admin_password}
         os.environ['OS_TENANT_ID'] = {admin_tenant_id}
