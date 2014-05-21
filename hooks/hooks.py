@@ -31,7 +31,7 @@ from charmhelpers.contrib.openstack.context import IdentityServiceContext
 hooks = Hooks()
 
 
-def glance_sync_program(sstream_url, max_, ):
+def glance_sync_program():
     # Here things in {}s are variables, and dictionaries. obviously broken, but
     # it's a start.
 
@@ -42,11 +42,15 @@ def glance_sync_program(sstream_url, max_, ):
     #   - allow people to specify their own policy, since they can specify
     #     their own mirrors.
     #   - potentially allow people to specify backup mirrors?
+    #   - debug keyring support
+    #   - figure out what content_id is and whether we should allow users to
+    #     set it
 
     return dedent("""
         import os
         from simplestreams.mirrors import glance, UrlMirrorReader
         from simplestreams.objectstores.swift import SwiftObjectStore
+        from simplestreams.util import read_signed, path_from_mirror_url
 
         a_url = '%s://%s:%s/v2.0' % ({auth_protocol}, {auth_host}, {auth_port})
         os.environ['OS_AUTH_URL'] = a_url
@@ -54,14 +58,17 @@ def glance_sync_program(sstream_url, max_, ):
         os.environ['OS_PASSWORD'] = {admin_password}
         os.environ['OS_TENANT_ID'] = {admin_tenant_id}
 
+        mirror_url, initial_path = path_from_mirror_url({url}, {path})
+
         def policy(content, path):
-            if args.path.endswith('sjson'):
-                return util.read_signed(content, keyring=args.keyring)
+            if initial_path.endswith('sjson'):
+                return read_signed(content)
             else:
                 return content
 
-        config = {'max_items': {max}, 'keep': False, 'cloud_name': {cloud_name}}
-        smirror = UrlMirrorReader({url}, policy=policy)
+        config = {{'max_items': {max}, 'keep': False, 'cloud_name': {cloud_name}
+                   'content_id': 'auto.sync'}}
+        smirror = UrlMirrorReader(mirror_url, policy=policy)
 
         # juju looks in simplestreams/data/* in swift to figure out which
         # images to deploy, so this path isn't really configurable even though
@@ -69,7 +76,7 @@ def glance_sync_program(sstream_url, max_, ):
         store = SwiftObjectStore('simplestreams/data/')
 
         tmirror = glance.GlanceMirror(config=config, objectstore=store)
-        tmirror.sync(smirror, path={path})
+        tmirror.sync(smirror, path=initial_path)
     """)
 
 
