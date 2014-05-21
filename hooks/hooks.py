@@ -25,7 +25,7 @@ from charmhelpers.core.hookenv import (
 )
 
 
-from charmhelpers.contrib.openstack import IdentityServiceContext
+from charmhelpers.contrib.openstack.context import IdentityServiceContext
 
 
 hooks = Hooks()
