@@ -12,3 +12,7 @@ options:
     type: boolean
     default: False
     description: "Should the sync be running or not?"
+  frequency:
+    type: string
+    default: "daily"
+    description: "cron job frequency - one of ['hourly', 'daily', 'weekly']"
