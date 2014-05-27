@@ -13,5 +13,3 @@ provides:
 requires:
   identity-service:
     interface: keystone
-  image-service:
-    interface: glance

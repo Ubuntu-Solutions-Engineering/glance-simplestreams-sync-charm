@@ -5,7 +5,7 @@
 # This script runs as a cron job installed by the
 # glance-simplestreams-sync juju charm.  It reads config files that
 # are written by the hooks of that charm based on its config and
-# relations to glance and keystone. However, it does not execute in a
+# juju relation to keystone. However, it does not execute in a
 # juju hook context itself.
 
 import logging
@@ -20,7 +20,6 @@ CONF_FILE_DIR = os.environ.get('SIMPLESTREAMS_GLANCE_SYNC_CONF_DIR',
                                '/etc/simplestreams-glance-sync')
 MIRRORS_CONF_FILE_NAME = os.path.join(CONF_FILE_DIR, 'mirrors.yaml')
 ID_CONF_FILE_NAME = os.path.join(CONF_FILE_DIR, 'identity.yaml')
-GLANCE_CONF_FILE_NAME = os.path.join(CONF_FILE_DIR, 'glance.yaml')
 
 # juju looks in simplestreams/data/* in swift to figure out which
 # images to deploy, so this path isn't really configurable even though
@@ -70,15 +69,13 @@ if __name__ == "__main__":
     
     log = setup_logging()
 
-    conf_files =  [ID_CONF_FILE_NAME, GLANCE_CONF_FILE_NAME,
-                   MIRRORS_CONF_FILE_NAME]
+    conf_files =  [ID_CONF_FILE_NAME, MIRRORS_CONF_FILE_NAME]
     for conf_file_name in conf_files:
         if not os.path.exists(conf_file_name):
             log.info("{} does not exist, exiting.".conf_file_name)
             sys.exit(1)
 
     id_conf = read_conf(ID_CONF_FILE_NAME)
-    glance_conf = read_conf(GLANCE_CONF_FILE_NAME)
     mirrors = read_conf(MIRRORS_CONF_FILE_NAME)
 
     auth_url = '%s://%s:%s/v2.0' % (id_conf['auth_protocol'],
@@ -88,6 +85,7 @@ if __name__ == "__main__":
     os.environ['OS_USERNAME'] = id_conf['admin_user']
     os.environ['OS_PASSWORD'] = id_conf['admin_password']
     os.environ['OS_TENANT_ID'] = id_conf['admin_tenant_id']
+    # TODO: region name
 
     for mirror_info in mirrors:
         mirror_url, initial_path = path_from_mirror_url(mirror_info['url'],
@@ -101,7 +99,6 @@ if __name__ == "__main__":
 
         config = {'max_items': mirror_info['max'],
                   'keep': False,
-                  'cloud_name': glance_conf['cloud_name'],
                   'content_id': 'auto.sync'}
 
         tmirror = glance.GlanceMirror(config=config, objectstore=store)
