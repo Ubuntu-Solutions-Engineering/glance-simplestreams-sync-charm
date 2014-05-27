@@ -28,32 +28,41 @@ import shutil
 import subprocess
 
 from charmhelpers.fetch import apt_install
-from charmhelpers.core.hookenv import (
-    Hooks,
-    UnregisteredHookError,
-    config,
-    log
-)
+from charmhelpers.core import hookenv
 
-from charmhelpers.contrib.openstack.context import IdentityServiceContext
+from charmhelpers.contrib.openstack.context import (IdentityServiceContext,
+                                                    OSContextGenerator)
 from charmhelpers.contrib.openstack.utils import get_os_codename_package
 from charmhelpers.contrib.openstack.templating import OSConfigRenderer
 
 CONF_FILE_DIR = os.environ.get('SIMPLESTREAMS_GLANCE_SYNC_CONF_DIR',
                                '/etc/simplestreams-glance-sync')
+
 MIRRORS_CONF_FILE_NAME = os.path.join(CONF_FILE_DIR, 'mirrors.yaml')
 ID_CONF_FILE_NAME = os.path.join(CONF_FILE_DIR, 'identity.yaml')
+
+SCRIPT_NAME = "glance-simplestreams-sync.py"
+
+hooks = hookenv.Hooks()
+
+
+class MirrorsConfigServiceContext(OSContextGenerator):
+    """Context for mirrors.yaml template - does not use relation info.
+    """
+    interfaces = ['simplestreams-image-service']
+
+    def __call__(self):
+        hookenv.log("Generating template context for simplestreams-image-service")
+        config = hookenv.config()
+        return dict(mirror_list=config['mirror_list'])
+
 
 release = get_os_codename_package('glance-common', fatal=False) or 'icehouse'
 configs = OSConfigRenderer(templates_dir='templates/',
                            openstack_release=release)
 
-configs.register(MIRRORS_CONF_FILE_NAME, [config])
+configs.register(MIRRORS_CONF_FILE_NAME, [MirrorsConfigServiceContext()])
 configs.register(ID_CONF_FILE_NAME, [IdentityServiceContext()])
-
-SCRIPT_NAME = "glance-simplestreams-sync.py"
-
-hooks = Hooks()
 
 
 def install_cron_script():
@@ -64,7 +73,8 @@ def install_cron_script():
 
     """
     source = "scripts/" + SCRIPT_NAME
-    destdir = '/etc/cron.{frequency}'.format(frequency=config('frequency'))
+    config = hookenv.config()
+    destdir = '/etc/cron.{frequency}'.format(frequency=config['frequency'])
     shutil.copy(source, destdir)
 
 
@@ -80,13 +90,13 @@ def run_sync():
     Note that it will fail to run if all the config files are not in place.
     We allow that, since future hook executions will also call run_sync().
     """
-    log.debug("Running sync script directly")
+    hookenv.log("Running sync script directly")
     try:
         output = subprocess.check_output(os.path.join("scripts", SCRIPT_NAME),
                                          stderr=subprocess.STDOUT)
-        log.debug("Output from sync script run: {}".format(output))
+        hookenv.log("Output from sync script run: {}".format(output))
     except subprocess.CalledProcessError as e:
-        log.exception("Nonzero exit from single sync: {}".format(e.returnCode))
+        hookenv.log("Nonzero exit from single sync: {}".format(e.returnCode))
 
 
 @hooks.hook('identity-service-relation-changed')
@@ -101,35 +111,43 @@ def identity_service_changed():
 
 @hooks.hook('install')
 def install():
+    hookenv.log("creating config dir at {}".format(CONF_FILE_DIR))
+    if not os.path.isdir(CONF_FILE_DIR):
+        if os.path.exists(CONF_FILE_DIR):
+            hookenv.log("error: CONF_FILE_DIR exists but is not a directory. exiting.")
+            return
+        os.mkdir(CONF_FILE_DIR)
+
     apt_install(packages=['python-simplestreams', 'python-glanceclient',
                           'python-yaml',
                           'python-swiftclient', 'ubuntu-cloudimage-keyring'])
 
-    log('end install hook.')
+    hookenv.log('end install hook.')
 
 
 @hooks.hook('config-changed')
 def config_changed():
-    log('begin config-changed hook.')
+    hookenv.log('begin config-changed hook.')
 
     configs.write(MIRRORS_CONF_FILE_NAME)
 
+    config = hookenv.config()
     if config.changed('run'):
-        log("removing existing cron jobs for simplestreams sync")
+        hookenv.log("removing existing cron jobs for simplestreams sync")
         uninstall_cron_script()
 
         if not config['run']:
-            log("'run' config disabled, exiting")
+            hookenv.log("'run' config disabled, exiting")
         else:
-            log("'run' config enabled, installing to "
+            hookenv.log("'run' config enabled, installing to "
                 "/etc/cron.{}".format(config['frequency']))
             install_cron_script()
-            log("Running initial sync")
+            hookenv.log("Running initial sync")
             run_sync()
 
 
 if __name__ == '__main__':
     try:
         hooks.execute(sys.argv)
-    except UnregisteredHookError as e:
-        log('Unknown hook {} - skipping.'.format(e))
+    except hookenv.UnregisteredHookError as e:
+        hookenv.log('Unknown hook {} - skipping.'.format(e))
