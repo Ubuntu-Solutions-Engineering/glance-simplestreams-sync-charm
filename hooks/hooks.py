@@ -100,11 +100,16 @@ def config_changed():
     configs.write(MIRRORS_CONF_FILE_NAME)
 
     if config.changed('run'):
+        log("removing existing cron jobs for simplestreams sync")
+        uninstall_cron_script()
+
         if not config['run']:
-            log('"run" config disabled, uninstalling cronjob and exiting')
-            uninstall_cron_script()
+            log("'run' config disabled, exiting")
         else:
+            log("'run' config enabled, installing to "
+                "/etc/cron.{}".format(config['frequency']))
             install_cron_script()
+            log("Running initial sync")
             run_sync()
 
 
