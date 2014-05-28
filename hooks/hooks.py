@@ -97,6 +97,7 @@ def run_sync():
         hookenv.log("Output from sync script run: {}".format(output))
     except subprocess.CalledProcessError as e:
         hookenv.log("Nonzero exit from single sync: {}".format(e.returncode))
+        hookenv.log("output from sync error: {}".format(e.output))
 
 
 @hooks.hook('identity-service-relation-changed')
