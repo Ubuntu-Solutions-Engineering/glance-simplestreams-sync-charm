@@ -87,7 +87,7 @@ if __name__ == "__main__":
     conf_files =  [ID_CONF_FILE_NAME, MIRRORS_CONF_FILE_NAME]
     for conf_file_name in conf_files:
         if not os.path.exists(conf_file_name):
-            log.info("{} does not exist, exiting.".conf_file_name)
+            log.info("{} does not exist, exiting.".format(conf_file_name))
             sys.exit(1)
 
     id_conf = read_conf(ID_CONF_FILE_NAME)
