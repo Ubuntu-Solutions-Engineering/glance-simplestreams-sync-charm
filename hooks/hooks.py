@@ -36,7 +36,7 @@ from charmhelpers.contrib.openstack.utils import get_os_codename_package
 from charmhelpers.contrib.openstack.templating import OSConfigRenderer
 
 CONF_FILE_DIR = os.environ.get('SIMPLESTREAMS_GLANCE_SYNC_CONF_DIR',
-                               '/etc/simplestreams-glance-sync')
+                               '/etc/glance-simplestreams-sync')
 
 MIRRORS_CONF_FILE_NAME = os.path.join(CONF_FILE_DIR, 'mirrors.yaml')
 ID_CONF_FILE_NAME = os.path.join(CONF_FILE_DIR, 'identity.yaml')

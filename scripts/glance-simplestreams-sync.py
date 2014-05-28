@@ -53,7 +53,7 @@ SWIFT_DATA_DIR = 'simplestreams/data/'
 #     set it
 
 def setup_logging():
-    logfilename = '/var/log/simplestreams-glance-sync.log'
+    logfilename = '/var/log/glance-simplestreams-sync.log'
     h = logging.FileHandler(logfilename)
     h.setFormatter(logging.Formatter(
         '%(levelname)-9s * %(asctime)s [PID:%(process)d] * %(name)s * '
