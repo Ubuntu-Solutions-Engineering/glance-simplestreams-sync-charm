@@ -106,7 +106,7 @@ def identity_service_joined(relation_id=None):
     # we will not be starting anything to pay attention to this URL.
     url = 'http://' + hookenv.unit_get('private-address') # canonical_url(CONFIGS) + ":9292"
     relation_data = {
-        'service': 'glance-simplestreams-sync',
+        'service': 'oxygen', #'glance-simplestreams-sync', TODO
         'region': 'RegionOne', # config('region'),
         'public_url': url,
         'admin_url': url,
