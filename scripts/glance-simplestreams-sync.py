@@ -102,7 +102,7 @@ if __name__ == "__main__":
     os.environ['OS_TENANT_ID'] = id_conf['admin_tenant_id']
     # TODO: region name
 
-    for mirror_info in mirrors:
+    for mirror_info in mirrors['mirror_list']:
         mirror_url, initial_path = path_from_mirror_url(mirror_info['url'],
                                                         mirror_info['path'])
 
