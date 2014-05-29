@@ -91,7 +91,15 @@ if __name__ == "__main__":
             sys.exit(1)
 
     id_conf = read_conf(ID_CONF_FILE_NAME)
+    if None in id_conf.values():
+        log.info("Configuration value missing in {}:\n"
+                 "{}".format(ID_CONF_FILE_NAME, id_conf))
+        sys.exit(1)
     mirrors = read_conf(MIRRORS_CONF_FILE_NAME)
+    if None in mirrors.values():
+        log.info("Configuration value missing in {}:\n"
+                 "{}".format(MIRRORS_CONF_FILE_NAME, mirrors))
+        sys.exit(1)
 
     auth_url = '%s://%s:%s/v2.0' % (id_conf['auth_protocol'],
                                     id_conf['auth_host'],
