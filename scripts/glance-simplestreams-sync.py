@@ -31,8 +31,8 @@ from simplestreams.util import read_signed, path_from_mirror_url
 import sys
 import yaml
 
-CONF_FILE_DIR = os.environ.get('SIMPLESTREAMS_GLANCE_SYNC_CONF_DIR',
-                               '/etc/simplestreams-glance-sync')
+CONF_FILE_DIR = os.environ.get('GLANCE_SIMPLESTREAMS_SYNC_CONF_DIR',
+                               '/etc/glance-simplestreams-sync')
 MIRRORS_CONF_FILE_NAME = os.path.join(CONF_FILE_DIR, 'mirrors.yaml')
 ID_CONF_FILE_NAME = os.path.join(CONF_FILE_DIR, 'identity.yaml')
 
