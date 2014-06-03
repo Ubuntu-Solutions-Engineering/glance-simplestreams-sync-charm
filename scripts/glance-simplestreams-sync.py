@@ -31,8 +31,9 @@ from simplestreams.util import read_signed, path_from_mirror_url
 import sys
 import yaml
 
-CONF_FILE_DIR = os.environ.get('SIMPLESTREAMS_GLANCE_SYNC_CONF_DIR',
-                               '/etc/simplestreams-glance-sync')
+KEYRING = '/usr/share/keyrings/ubuntu-cloudimage-keyring.gpg'
+CONF_FILE_DIR = os.environ.get('GLANCE_SIMPLESTREAMS_SYNC_CONF_DIR',
+                               '/etc/glance-simplestreams-sync')
 MIRRORS_CONF_FILE_NAME = os.path.join(CONF_FILE_DIR, 'mirrors.yaml')
 ID_CONF_FILE_NAME = os.path.join(CONF_FILE_DIR, 'identity.yaml')
 
@@ -69,7 +70,7 @@ def setup_logging():
 
 def policy(content, path):
     if path.endswith('sjson'):
-        return read_signed(content)
+        return read_signed(content, keyring=KEYRING)
     else:
         return content
 
@@ -91,7 +92,15 @@ if __name__ == "__main__":
             sys.exit(1)
 
     id_conf = read_conf(ID_CONF_FILE_NAME)
+    if None in id_conf.values():
+        log.info("Configuration value missing in {}:\n"
+                 "{}".format(ID_CONF_FILE_NAME, id_conf))
+        sys.exit(1)
     mirrors = read_conf(MIRRORS_CONF_FILE_NAME)
+    if None in mirrors.values():
+        log.info("Configuration value missing in {}:\n"
+                 "{}".format(MIRRORS_CONF_FILE_NAME, mirrors))
+        sys.exit(1)
 
     auth_url = '%s://%s:%s/v2.0' % (id_conf['auth_protocol'],
                                     id_conf['auth_host'],
@@ -102,7 +111,7 @@ if __name__ == "__main__":
     os.environ['OS_TENANT_ID'] = id_conf['admin_tenant_id']
     # TODO: region name
 
-    for mirror_info in mirrors:
+    for mirror_info in mirrors['mirror_list']:
         mirror_url, initial_path = path_from_mirror_url(mirror_info['url'],
                                                         mirror_info['path'])
 

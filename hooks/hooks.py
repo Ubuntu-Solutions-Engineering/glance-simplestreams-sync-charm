@@ -35,7 +35,7 @@ from charmhelpers.contrib.openstack.context import (IdentityServiceContext,
 from charmhelpers.contrib.openstack.utils import get_os_codename_package
 from charmhelpers.contrib.openstack.templating import OSConfigRenderer
 
-CONF_FILE_DIR = os.environ.get('SIMPLESTREAMS_GLANCE_SYNC_CONF_DIR',
+CONF_FILE_DIR = os.environ.get('GLANCE_SIMPLESTREAMS_SYNC_CONF_DIR',
                                '/etc/glance-simplestreams-sync')
 
 MIRRORS_CONF_FILE_NAME = os.path.join(CONF_FILE_DIR, 'mirrors.yaml')
@@ -100,12 +100,23 @@ def run_sync():
         hookenv.log("output from sync error: {}".format(e.output))
 
 
+@hooks.hook('identity-service-relation-joined')
+def identity_service_joined(relation_id=None):
+    # generate bogus service url to make keystone happy.
+    # we will not be starting anything to pay attention to this URL.
+    url = 'http://' + hookenv.unit_get('private-address') # canonical_url(CONFIGS) + ":9292"
+    relation_data = {
+        'service': 'oxygen', #'glance-simplestreams-sync', TODO
+        'region': 'RegionOne', # config('region'),
+        'public_url': url,
+        'admin_url': url,
+        'internal_url': url}
+
+    hookenv.relation_set(relation_id=relation_id, **relation_data)
+
+
 @hooks.hook('identity-service-relation-changed')
 def identity_service_changed():
-    """
-    TODOs:
-    - handle other ID service hook events
-    """
     configs.write(ID_CONF_FILE_NAME)
     run_sync()
 
