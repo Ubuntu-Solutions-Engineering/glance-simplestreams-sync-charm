@@ -31,6 +31,7 @@ from simplestreams.util import read_signed, path_from_mirror_url
 import sys
 import yaml
 
+KEYRING = '/usr/share/keyrings/ubuntu-cloudimage-keyring.gpg'
 CONF_FILE_DIR = os.environ.get('GLANCE_SIMPLESTREAMS_SYNC_CONF_DIR',
                                '/etc/glance-simplestreams-sync')
 MIRRORS_CONF_FILE_NAME = os.path.join(CONF_FILE_DIR, 'mirrors.yaml')
@@ -69,7 +70,7 @@ def setup_logging():
 
 def policy(content, path):
     if path.endswith('sjson'):
-        return read_signed(content)
+        return read_signed(content, keyring=KEYRING)
     else:
         return content
 
