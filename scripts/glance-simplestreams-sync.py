@@ -53,6 +53,7 @@ SWIFT_DATA_DIR = 'simplestreams/data/'
 #   - figure out what content_id is and whether we should allow users to
 #     set it
 
+
 def setup_logging():
     logfilename = '/var/log/glance-simplestreams-sync.log'
     h = logging.FileHandler(logfilename)
@@ -68,6 +69,9 @@ def setup_logging():
     return logger
 
 
+log = setup_logging()
+
+
 def policy(content, path):
     if path.endswith('sjson'):
         return read_signed(content, keyring=KEYRING)
@@ -81,10 +85,7 @@ def read_conf(filename):
     return confobj
 
 
-if __name__ == "__main__":
-
-    log = setup_logging()
-
+def get_conf():
     conf_files = [ID_CONF_FILE_NAME, MIRRORS_CONF_FILE_NAME]
     for conf_file_name in conf_files:
         if not os.path.exists(conf_file_name):
@@ -102,6 +103,10 @@ if __name__ == "__main__":
                  "{}".format(MIRRORS_CONF_FILE_NAME, mirrors))
         sys.exit(1)
 
+    return id_conf, mirrors
+
+
+def set_openstack_env(id_conf):
     auth_url = '%s://%s:%s/v2.0' % (id_conf['auth_protocol'],
                                     id_conf['auth_host'],
                                     id_conf['auth_port'])
@@ -109,7 +114,9 @@ if __name__ == "__main__":
     os.environ['OS_USERNAME'] = id_conf['admin_user']
     os.environ['OS_PASSWORD'] = id_conf['admin_password']
     os.environ['OS_TENANT_ID'] = id_conf['admin_tenant_id']
-    # TODO: region name
+
+
+def do_sync(mirrors):
 
     for mirror_info in mirrors['mirror_list']:
         mirror_url, initial_path = path_from_mirror_url(mirror_info['url'],
@@ -128,3 +135,12 @@ if __name__ == "__main__":
         tmirror = glance.GlanceMirror(config=config, objectstore=store)
         log.info("calling GlanceMirror.sync")
         tmirror.sync(smirror, path=initial_path)
+
+
+if __name__ == "__main__":
+
+    id_conf, mirrors = get_conf()
+
+    set_openstack_env(id_conf)
+
+    do_sync(mirrors)
