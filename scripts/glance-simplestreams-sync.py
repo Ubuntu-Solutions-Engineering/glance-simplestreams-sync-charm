@@ -82,10 +82,10 @@ def read_conf(filename):
 
 
 if __name__ == "__main__":
-    
+
     log = setup_logging()
 
-    conf_files =  [ID_CONF_FILE_NAME, MIRRORS_CONF_FILE_NAME]
+    conf_files = [ID_CONF_FILE_NAME, MIRRORS_CONF_FILE_NAME]
     for conf_file_name in conf_files:
         if not os.path.exists(conf_file_name):
             log.info("{} does not exist, exiting.".format(conf_file_name))
