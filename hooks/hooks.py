@@ -25,7 +25,6 @@ import glob
 import os
 import sys
 import shutil
-import subprocess
 
 from charmhelpers.fetch import apt_install
 from charmhelpers.core import hookenv
@@ -35,13 +34,15 @@ from charmhelpers.contrib.openstack.context import (IdentityServiceContext,
 from charmhelpers.contrib.openstack.utils import get_os_codename_package
 from charmhelpers.contrib.openstack.templating import OSConfigRenderer
 
-CONF_FILE_DIR = os.environ.get('GLANCE_SIMPLESTREAMS_SYNC_CONF_DIR',
-                               '/etc/glance-simplestreams-sync')
+CONF_FILE_DIR = '/etc/glance-simplestreams-sync'
 
 MIRRORS_CONF_FILE_NAME = os.path.join(CONF_FILE_DIR, 'mirrors.yaml')
 ID_CONF_FILE_NAME = os.path.join(CONF_FILE_DIR, 'identity.yaml')
 
 SCRIPT_NAME = "glance-simplestreams-sync.py"
+
+CRON_POLL_FILENAME = 'glance_simplestreams_sync_fastpoll'
+CRON_POLL_FILEPATH = os.path.join('/etc/cron.d', CRON_POLL_FILENAME)
 
 hooks = hookenv.Hooks()
 
@@ -52,7 +53,7 @@ class MirrorsConfigServiceContext(OSContextGenerator):
     interfaces = ['simplestreams-image-service']
 
     def __call__(self):
-        hookenv.log("Generating template context for simplestreams-image-service")
+        hookenv.log("Generating template ctxt for simplestreams-image-service")
         config = hookenv.config()
         return dict(mirror_list=config['mirror_list'])
 
@@ -65,49 +66,48 @@ configs.register(MIRRORS_CONF_FILE_NAME, [MirrorsConfigServiceContext()])
 configs.register(ID_CONF_FILE_NAME, [IdentityServiceContext()])
 
 
-def install_cron_script():
-    """Installs sync program to /etc/cron.daily/
+def install_cron_scripts():
+    """Installs two cron jobs.
+    one in /etc/cron.$frequency/ to sync script for repeating sync
+
+    one in /cron.d every-minute job in crontab for quick polling.
 
     Script is not a template but we always overwrite, to ensure it is
     up-to-date.
 
     """
-    source = "scripts/" + SCRIPT_NAME
+    sync_script_source = "scripts/" + SCRIPT_NAME
+    shutil.copy(sync_script_source, CONF_FILE_DIR)
+
     config = hookenv.config()
-    destdir = '/etc/cron.{frequency}'.format(frequency=config['frequency'])
-    shutil.copy(source, destdir)
+    installed_script = os.path.join(CONF_FILE_DIR, SCRIPT_NAME)
+    linkname = '/etc/cron.{f}/{s}'.format(frequency=config['frequency'],
+                                          s=SCRIPT_NAME)
+    os.symlink(installed_script, linkname)
+
+    poll_file_source = os.path.join('scripts', CRON_POLL_FILENAME)
+    shutil.copy(poll_file_source, '/etc/cron.d/')
 
 
-def uninstall_cron_script():
-    """removes sync program from any place it might be"""
-    for fn in glob.glob("/etc/cron.*/"+ SCRIPT_NAME):
+def uninstall_cron_scripts():
+    """Removes sync program from any place it might be, and removes
+    polling cron job."""
+    for fn in glob.glob("/etc/cron.*/" + SCRIPT_NAME):
         if os.path.exists(fn):
             os.remove(fn)
 
-
-def run_sync():
-    """Run the sync script.
-    Note that it will fail to run if all the config files are not in place.
-    We allow that, since future hook executions will also call run_sync().
-    """
-    hookenv.log("Running sync script directly")
-    try:
-        output = subprocess.check_output(os.path.join("scripts", SCRIPT_NAME),
-                                         stderr=subprocess.STDOUT)
-        hookenv.log("Output from sync script run: {}".format(output))
-    except subprocess.CalledProcessError as e:
-        hookenv.log("Nonzero exit from single sync: {}".format(e.returncode))
-        hookenv.log("output from sync error: {}".format(e.output))
+    if os.path.exists(CRON_POLL_FILEPATH):
+        os.remove(CRON_POLL_FILEPATH)
 
 
 @hooks.hook('identity-service-relation-joined')
 def identity_service_joined(relation_id=None):
     # generate bogus service url to make keystone happy.
     # we will not be starting anything to pay attention to this URL.
-    url = 'http://' + hookenv.unit_get('private-address') # canonical_url(CONFIGS) + ":9292"
+    url = 'http://' + hookenv.unit_get('private-address')
     relation_data = {
         'service': 'image-stream',
-        'region': 'RegionOne', # config('region'),
+        'region': 'RegionOne',  # config('region'),
         'public_url': url,
         'admin_url': url,
         'internal_url': url}
@@ -118,7 +118,6 @@ def identity_service_joined(relation_id=None):
 @hooks.hook('identity-service-relation-changed')
 def identity_service_changed():
     configs.write(ID_CONF_FILE_NAME)
-    run_sync()
 
 
 @hooks.hook('install')
@@ -126,12 +125,13 @@ def install():
     hookenv.log("creating config dir at {}".format(CONF_FILE_DIR))
     if not os.path.isdir(CONF_FILE_DIR):
         if os.path.exists(CONF_FILE_DIR):
-            hookenv.log("error: CONF_FILE_DIR exists but is not a directory. exiting.")
+            hookenv.log("error: CONF_FILE_DIR exists"
+                        " but is not a directory. exiting.")
             return
         os.mkdir(CONF_FILE_DIR)
 
     apt_install(packages=['python-simplestreams', 'python-glanceclient',
-                          'python-yaml',
+                          'python-yaml', 'python-keystoneclient',
                           'python-swiftclient', 'ubuntu-cloudimage-keyring'])
 
     hookenv.log('end install hook.')
@@ -146,16 +146,15 @@ def config_changed():
     config = hookenv.config()
     if config.changed('run'):
         hookenv.log("removing existing cron jobs for simplestreams sync")
-        uninstall_cron_script()
+        uninstall_cron_scripts()
 
         if not config['run']:
             hookenv.log("'run' config disabled, exiting")
         else:
             hookenv.log("'run' config enabled, installing to "
-                "/etc/cron.{}".format(config['frequency']))
-            install_cron_script()
-            hookenv.log("Running initial sync")
-            run_sync()
+                        "/etc/cron.{}".format(config['frequency']))
+            hookenv.log("installing {} for polling".format(CRON_POLL_FILEPATH))
+            install_cron_scripts()
 
 
 if __name__ == '__main__':

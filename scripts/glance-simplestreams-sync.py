@@ -23,6 +23,8 @@
 # juju relation to keystone. However, it does not execute in a
 # juju hook context itself.
 
+import atexit
+from keystoneclient.v2_0 import client as keystone_client
 import logging
 import os
 from simplestreams.mirrors import glance, UrlMirrorReader
@@ -32,15 +34,22 @@ import sys
 import yaml
 
 KEYRING = '/usr/share/keyrings/ubuntu-cloudimage-keyring.gpg'
-CONF_FILE_DIR = os.environ.get('GLANCE_SIMPLESTREAMS_SYNC_CONF_DIR',
-                               '/etc/glance-simplestreams-sync')
+CONF_FILE_DIR = '/etc/glance-simplestreams-sync'
 MIRRORS_CONF_FILE_NAME = os.path.join(CONF_FILE_DIR, 'mirrors.yaml')
 ID_CONF_FILE_NAME = os.path.join(CONF_FILE_DIR, 'identity.yaml')
+
+SYNC_RUNNING_FLAG_FILE_NAME = os.path.join(CONF_FILE_DIR, 'sync-running.pid')
 
 # juju looks in simplestreams/data/* in swift to figure out which
 # images to deploy, so this path isn't really configurable even though
 # it is.
 SWIFT_DATA_DIR = 'simplestreams/data/'
+
+PRODUCT_STREAMS_SERVICE_NAME = 'image-stream'
+PRODUCT_STREAMS_SERVICE_TYPE = 'product-streams'
+PRODUCT_STREAMS_SERVICE_DESC = 'Ubuntu Product Streams'
+
+CRON_POLL_FILENAME = '/etc/cron.d/glance_simplestreams_sync_fastpoll'
 
 # TODOs:
 #   - We might want to allow people to set regions as well, so
@@ -137,10 +146,73 @@ def do_sync(mirrors):
         tmirror.sync(smirror, path=initial_path)
 
 
+def create_product_streams_service(ksc):
+
+    swift_endpoints = [e._info for e in ksc.endpoints.list()
+                       if e._info['name'] == 'swift']
+    if len(swift_endpoints) != 1:
+        log.warning("found %d swift endpoints, expecting one - not"
+                    " creating product-streams.".format(len(swift_endpoints)))
+        return
+
+    swift_endpoint = swift_endpoints[0]
+
+    ps_services = [s._info for s in ksc.services.list()
+                   if s._info['name'] == PRODUCT_STREAMS_SERVICE_NAME]
+    if len(ps_services) != 1:
+        log.warning("found %d product-streams services. expecting one."
+                    " - not creating new endpoint.".format(len(ps_services)))
+        return
+
+    ps_service_id = ps_services[0]['service_id']
+
+    ksc.endpoints.create(region=swift_endpoint['region'],
+                         service_id=ps_service_id,
+                         publicurl=swift_endpoint['publicurl'],
+                         adminurl=swift_endpoint['adminurl'],
+                         internalurl=swift_endpoint['internalurl'])
+
+
+def cleanup():
+    try:
+        os.unlink(SYNC_RUNNING_FLAG_FILE_NAME)
+    except OSError as e:
+        if e.errno != 2:
+            raise e
+
+atexit.register(cleanup)
+
 if __name__ == "__main__":
+
+    if os.path.exists(SYNC_RUNNING_FLAG_FILE_NAME):
+        log.info("sync started while pidfile exists, exiting")
+        sys.exit(0)
+
+    with open(SYNC_RUNNING_FLAG_FILE_NAME, 'w') as f:
+        f.write(str(os.getpid()))
 
     id_conf, mirrors = get_conf()
 
     set_openstack_env(id_conf)
 
-    do_sync(mirrors)
+    ksc = keystone_client.Client(username=os.environ['OS_USERNAME'],
+                                 password=os.environ['OS_PASSWORD'],
+                                 tenant_id=os.environ['OS_TENANT_ID'],
+                                 auth_url=os.environ['OS_AUTH_URL'])
+
+    servicenames = [s._info['name'] for s in ksc.services.list()]
+    ps_service_exists = PRODUCT_STREAMS_SERVICE_NAME in servicenames
+    swift_exists = 'swift' in servicenames
+
+    if not ps_service_exists and id_conf['use_swift'] and swift_exists:
+        create_product_streams_service(ksc)
+
+    try:
+        do_sync(mirrors)
+    except Exception as e:
+        log.exception("Exception during do_sync")
+        log.error("Errors in sync, not changing cron frequency.")
+        return
+
+    os.unlink(CRON_POLL_FILENAME)
+    log.info("Sync successful. Every-minute cron job removed.")
