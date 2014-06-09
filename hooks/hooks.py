@@ -134,6 +134,8 @@ def install():
                           'python-yaml', 'python-keystoneclient',
                           'python-swiftclient', 'ubuntu-cloudimage-keyring'])
 
+    install_cron_scripts()
+
     hookenv.log('end install hook.')
 
 
