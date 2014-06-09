@@ -81,7 +81,7 @@ def install_cron_scripts():
 
     config = hookenv.config()
     installed_script = os.path.join(CONF_FILE_DIR, SCRIPT_NAME)
-    linkname = '/etc/cron.{f}/{s}'.format(frequency=config['frequency'],
+    linkname = '/etc/cron.{f}/{s}'.format(f=config['frequency'],
                                           s=SCRIPT_NAME)
     os.symlink(installed_script, linkname)
 
