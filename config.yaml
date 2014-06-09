@@ -10,7 +10,7 @@ options:
       cloud-images.ubuntu.com.
   run:
     type: boolean
-    default: False
+    default: True
     description: "Should the sync be running or not?"
   frequency:
     type: string
