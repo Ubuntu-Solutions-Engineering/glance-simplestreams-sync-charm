@@ -54,7 +54,7 @@ import yaml
 
 KEYRING = '/usr/share/keyrings/ubuntu-cloudimage-keyring.gpg'
 CONF_FILE_DIR = '/etc/glance-simplestreams-sync'
-MIRRORS_CONF_FILE_NAME = os.path.join(CONF_FILE_DIR, 'mirrors.yaml')
+CHARM_CONF_FILE_NAME = os.path.join(CONF_FILE_DIR, 'mirrors.yaml')
 ID_CONF_FILE_NAME = os.path.join(CONF_FILE_DIR, 'identity.yaml')
 
 SYNC_RUNNING_FLAG_FILE_NAME = os.path.join(CONF_FILE_DIR, 'sync-running.pid')
@@ -93,7 +93,7 @@ def read_conf(filename):
 
 
 def get_conf():
-    conf_files = [ID_CONF_FILE_NAME, MIRRORS_CONF_FILE_NAME]
+    conf_files = [ID_CONF_FILE_NAME, CHARM_CONF_FILE_NAME]
     for conf_file_name in conf_files:
         if not os.path.exists(conf_file_name):
             log.info("{} does not exist, exiting.".format(conf_file_name))
@@ -104,13 +104,13 @@ def get_conf():
         log.info("Configuration value missing in {}:\n"
                  "{}".format(ID_CONF_FILE_NAME, id_conf))
         sys.exit(1)
-    mirrors = read_conf(MIRRORS_CONF_FILE_NAME)
-    if None in mirrors.values():
+    charm_conf = read_conf(CHARM_CONF_FILE_NAME)
+    if None in charm_conf.values():
         log.info("Configuration value missing in {}:\n"
-                 "{}".format(MIRRORS_CONF_FILE_NAME, mirrors))
+                 "{}".format(CHARM_CONF_FILE_NAME, charm_conf))
         sys.exit(1)
 
-    return id_conf, mirrors
+    return id_conf, charm_conf
 
 
 def set_openstack_env(id_conf, charm_conf):
@@ -125,9 +125,9 @@ def set_openstack_env(id_conf, charm_conf):
     os.environ['OS_REGION_NAME'] = charm_conf['region']
 
 
-def do_sync(mirrors):
+def do_sync(charm_conf):
 
-    for mirror_info in mirrors['mirror_list']:
+    for mirror_info in charm_conf['mirror_list']:
         mirror_url, initial_path = path_from_mirror_url(mirror_info['url'],
                                                         mirror_info['path'])
 
