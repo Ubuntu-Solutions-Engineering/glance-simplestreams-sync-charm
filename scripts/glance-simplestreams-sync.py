@@ -260,8 +260,6 @@ if __name__ == "__main__":
         do_sync(charm_conf)
     except Exception as e:
         log.exception("Exception during do_sync")
-        log.error("Errors in sync, not changing cron frequency.")
-        sys.exit(1)
 
     os.unlink(CRON_POLL_FILENAME)
-    log.info("Sync successful. Every-minute cron job is now removed.")
+    log.info("Initial sync attempt done. every-minute cronjob now removed.")
