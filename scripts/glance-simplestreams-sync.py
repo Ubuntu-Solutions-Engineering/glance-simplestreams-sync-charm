@@ -135,13 +135,14 @@ def do_sync(charm_conf):
 
         smirror = UrlMirrorReader(mirror_url, policy=policy)
 
-        store = SwiftObjectStore(SWIFT_DATA_DIR)
+        store = SwiftObjectStore(SWIFT_DATA_DIR, region=charm_conf['region'])
 
         config = {'max_items': mirror_info['max'],
-                  'keep': False,
+                  'keep_items': False,
                   'content_id': 'auto.sync'}
 
-        tmirror = glance.GlanceMirror(config=config, objectstore=store)
+        tmirror = glance.GlanceMirror(config=config, objectstore=store,
+                                      region=charm_conf)
         log.info("calling GlanceMirror.sync")
         tmirror.sync(smirror, path=initial_path)
 
