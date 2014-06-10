@@ -210,8 +210,6 @@ def cleanup():
         if e.errno != 2:
             raise e
 
-atexit.register(cleanup)
-
 if __name__ == "__main__":
 
     log.info("glance-simplestreams-sync started.")
@@ -219,6 +217,8 @@ if __name__ == "__main__":
     if os.path.exists(SYNC_RUNNING_FLAG_FILE_NAME):
         log.info("sync started while pidfile exists, exiting")
         sys.exit(0)
+
+    atexit.register(cleanup)
 
     with open(SYNC_RUNNING_FLAG_FILE_NAME, 'w') as f:
         f.write(str(os.getpid()))
