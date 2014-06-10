@@ -12,6 +12,10 @@ options:
     type: boolean
     default: True
     description: "Should the sync be running or not?"
+  use_swift:
+    type: boolean
+    default: True
+    description: "Should the charm set up the product-streams endpoint with swift's URLs?"
   frequency:
     type: string
     default: "daily"

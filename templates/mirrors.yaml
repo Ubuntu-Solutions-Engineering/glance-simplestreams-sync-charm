@@ -1,1 +1,2 @@
 mirror_list: {{ mirror_list }}
+use_swift: {{ use_swift }}

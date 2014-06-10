@@ -146,13 +146,18 @@ def do_sync(mirrors):
         tmirror.sync(smirror, path=initial_path)
 
 
-def create_product_streams_service(ksc):
+def update_product_streams_service(ksc):
+    """
+    Updates URLs of product-streams endpoint to point to swift URLs.
+    """
 
-    swift_endpoints = [e._info for e in ksc.endpoints.list()
-                       if e._info['name'] == 'swift']
+    endpoints = [e._info for e in ksc.endpoints.list()]
+
+    swift_endpoints = [e for e in endpoints if e['name'] == 'swift']
     if len(swift_endpoints) != 1:
         log.warning("found %d swift endpoints, expecting one - not"
-                    " creating product-streams.".format(len(swift_endpoints)))
+                    " updating product-streams"
+                    " endpoint.".format(len(swift_endpoints)))
         return
 
     swift_endpoint = swift_endpoints[0]
@@ -161,16 +166,31 @@ def create_product_streams_service(ksc):
                    if s._info['name'] == PRODUCT_STREAMS_SERVICE_NAME]
     if len(ps_services) != 1:
         log.warning("found %d product-streams services. expecting one."
-                    " - not creating new endpoint.".format(len(ps_services)))
+                    " - not updating endpoint.".format(len(ps_services)))
         return
 
     ps_service_id = ps_services[0]['service_id']
+    ps_service_region = ps_services[0]['region']
 
-    ksc.endpoints.create(region=swift_endpoint['region'],
-                         service_id=ps_service_id,
-                         publicurl=swift_endpoint['publicurl'],
-                         adminurl=swift_endpoint['adminurl'],
-                         internalurl=swift_endpoint['internalurl'])
+    ps_endpoints = [e for e in endpoints
+                    if e['service_id'] == ps_service_id
+                    and e['region'] == ps_service_region]
+
+    if len(ps_endpoints) != 1:
+        log.warning("found %d product-streams endpoints, expecting one."
+                    " - not updating endpoint".format(len(ps_endpoints)))
+        return
+
+    log.info("Deleting existing product-streams endpoint: ")
+    ksc.endpoints.delete(ps_endpoints[0]['id'])
+
+    create_args = dict(region=swift_endpoint['region'],
+                       service_id=ps_service_id,
+                       publicurl=swift_endpoint['publicurl'],
+                       adminurl=swift_endpoint['adminurl'],
+                       internalurl=swift_endpoint['internalurl'])
+    log.info("creating product-streams endpoint: {}".format(create_args))
+    ksc.endpoints.create(**create_args)
 
 
 def cleanup():
@@ -184,6 +204,8 @@ atexit.register(cleanup)
 
 if __name__ == "__main__":
 
+    log.info("glance-simplestreams-sync started.")
+
     if os.path.exists(SYNC_RUNNING_FLAG_FILE_NAME):
         log.info("sync started while pidfile exists, exiting")
         sys.exit(0)
@@ -191,7 +213,7 @@ if __name__ == "__main__":
     with open(SYNC_RUNNING_FLAG_FILE_NAME, 'w') as f:
         f.write(str(os.getpid()))
 
-    id_conf, mirrors = get_conf()
+    id_conf, charm_conf = get_conf()
 
     set_openstack_env(id_conf)
 
@@ -204,15 +226,24 @@ if __name__ == "__main__":
     ps_service_exists = PRODUCT_STREAMS_SERVICE_NAME in servicenames
     swift_exists = 'swift' in servicenames
 
-    if not ps_service_exists and id_conf['use_swift'] and swift_exists:
-        create_product_streams_service(ksc)
+    log.info("ps_service_exists={}, charm_conf['use_swift']={}"
+             ", swift_exists={}".format(ps_service_exists,
+                                        charm_conf['use_swift'],
+                                        swift_exists))
+
+    if not ps_service_exists and charm_conf['use_swift'] and swift_exists:
+        log.info("Updating product streams service.")
+        update_product_streams_service(ksc)
+    else:
+        log.info("Not updating product streams service.")
 
     try:
-        do_sync(mirrors)
+        log.info("Beginning image sync")
+        do_sync(charm_conf)
     except Exception as e:
         log.exception("Exception during do_sync")
         log.error("Errors in sync, not changing cron frequency.")
         sys.exit(1)
 
     os.unlink(CRON_POLL_FILENAME)
-    log.info("Sync successful. Every-minute cron job removed.")
+    log.info("Sync successful. Every-minute cron job is now removed.")

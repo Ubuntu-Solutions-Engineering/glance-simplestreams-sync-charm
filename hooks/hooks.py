@@ -55,7 +55,8 @@ class MirrorsConfigServiceContext(OSContextGenerator):
     def __call__(self):
         hookenv.log("Generating template ctxt for simplestreams-image-service")
         config = hookenv.config()
-        return dict(mirror_list=config['mirror_list'])
+        return dict(mirror_list=config['mirror_list'],
+                    use_swift=config['use_swift'])
 
 
 release = get_os_codename_package('glance-common', fatal=False) or 'icehouse'
