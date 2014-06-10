@@ -23,9 +23,28 @@
 # juju relation to keystone. However, it does not execute in a
 # juju hook context itself.
 
+import logging
+
+
+def setup_logging():
+    logfilename = '/var/log/glance-simplestreams-sync.log'
+    h = logging.FileHandler(logfilename)
+    h.setFormatter(logging.Formatter(
+        '%(levelname)-9s * %(asctime)s [PID:%(process)d] * %(name)s * '
+        '%(message)s',
+        datefmt='%m-%d %H:%M:%S'))
+
+    logger = logging.getLogger()
+    logger.setLevel('DEBUG')
+    logger.addHandler(h)
+
+    return logger
+
+log = setup_logging()
+
+
 import atexit
 from keystoneclient.v2_0 import client as keystone_client
-import logging
 import os
 from simplestreams.mirrors import glance, UrlMirrorReader
 from simplestreams.objectstores.swift import SwiftObjectStore
@@ -58,24 +77,6 @@ CRON_POLL_FILENAME = '/etc/cron.d/glance_simplestreams_sync_fastpoll'
 #   - debug keyring support
 #   - figure out what content_id is and whether we should allow users to
 #     set it
-
-
-def setup_logging():
-    logfilename = '/var/log/glance-simplestreams-sync.log'
-    h = logging.FileHandler(logfilename)
-    h.setFormatter(logging.Formatter(
-        '%(levelname)-9s * %(asctime)s [PID:%(process)d] * %(name)s * '
-        '%(message)s',
-        datefmt='%m-%d %H:%M:%S'))
-
-    logger = logging.getLogger('')
-    logger.setLevel('DEBUG')
-    logger.addHandler(h)
-
-    return logger
-
-
-log = setup_logging()
 
 
 def policy(content, path):
