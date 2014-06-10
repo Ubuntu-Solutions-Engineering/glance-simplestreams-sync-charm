@@ -52,9 +52,6 @@ PRODUCT_STREAMS_SERVICE_DESC = 'Ubuntu Product Streams'
 CRON_POLL_FILENAME = '/etc/cron.d/glance_simplestreams_sync_fastpoll'
 
 # TODOs:
-#   - We might want to allow people to set regions as well, so
-#     you can have one charm sync to one region, instead of doing a cross
-#     region sync.
 #   - allow people to specify their own policy, since they can specify
 #     their own mirrors.
 #   - potentially allow people to specify backup mirrors?
@@ -115,7 +112,7 @@ def get_conf():
     return id_conf, mirrors
 
 
-def set_openstack_env(id_conf):
+def set_openstack_env(id_conf, charm_conf):
     auth_url = '%s://%s:%s/v2.0' % (id_conf['auth_protocol'],
                                     id_conf['auth_host'],
                                     id_conf['auth_port'])
@@ -123,6 +120,8 @@ def set_openstack_env(id_conf):
     os.environ['OS_USERNAME'] = id_conf['admin_user']
     os.environ['OS_PASSWORD'] = id_conf['admin_password']
     os.environ['OS_TENANT_ID'] = id_conf['admin_tenant_id']
+
+    os.environ['OS_REGION_NAME'] = charm_conf['region']
 
 
 def do_sync(mirrors):
@@ -146,14 +145,25 @@ def do_sync(mirrors):
         tmirror.sync(smirror, path=initial_path)
 
 
-def update_product_streams_service(ksc):
+def update_product_streams_service(ksc, services, region):
     """
     Updates URLs of product-streams endpoint to point to swift URLs.
     """
 
-    endpoints = [e._info for e in ksc.endpoints.list()]
+    swift_services = [s for s in services
+                      if s['name'] == 'swift']
+    if len(swift_services) != 1:
+        log.error("found %d swift services. expecting one."
+                  " - not updating endpoint.".format(len(swift_services)))
+        return
 
-    swift_endpoints = [e for e in endpoints if e['name'] == 'swift']
+    swift_service_id = swift_services[0]['service_id']
+
+    endpoints = [e._info for e in ksc.endpoints.list()
+                 if e._info['region'] == region]
+
+    swift_endpoints = [e for e in endpoints
+                       if e['service_id'] == swift_service_id]
     if len(swift_endpoints) != 1:
         log.warning("found %d swift endpoints, expecting one - not"
                     " updating product-streams"
@@ -162,29 +172,29 @@ def update_product_streams_service(ksc):
 
     swift_endpoint = swift_endpoints[0]
 
-    ps_services = [s._info for s in ksc.services.list()
-                   if s._info['name'] == PRODUCT_STREAMS_SERVICE_NAME]
+    ps_services = [s for s in services
+                   if s['name'] == PRODUCT_STREAMS_SERVICE_NAME]
     if len(ps_services) != 1:
-        log.warning("found %d product-streams services. expecting one."
-                    " - not updating endpoint.".format(len(ps_services)))
+        log.error("found %d product-streams services. expecting one."
+                  " - not updating endpoint.".format(len(ps_services)))
         return
 
     ps_service_id = ps_services[0]['service_id']
-    ps_service_region = ps_services[0]['region']
 
     ps_endpoints = [e for e in endpoints
-                    if e['service_id'] == ps_service_id
-                    and e['region'] == ps_service_region]
+                    if e['service_id'] == ps_service_id]
 
     if len(ps_endpoints) != 1:
-        log.warning("found %d product-streams endpoints, expecting one."
-                    " - not updating endpoint".format(len(ps_endpoints)))
+        log.warning("found %d product-streams endpoints in region {},"
+                    " expecting one - not updating"
+                    " endpoint".format(region,
+                                       len(ps_endpoints)))
         return
 
     log.info("Deleting existing product-streams endpoint: ")
     ksc.endpoints.delete(ps_endpoints[0]['id'])
 
-    create_args = dict(region=swift_endpoint['region'],
+    create_args = dict(region=region,
                        service_id=ps_service_id,
                        publicurl=swift_endpoint['publicurl'],
                        adminurl=swift_endpoint['adminurl'],
@@ -215,14 +225,15 @@ if __name__ == "__main__":
 
     id_conf, charm_conf = get_conf()
 
-    set_openstack_env(id_conf)
+    set_openstack_env(id_conf, charm_conf)
 
     ksc = keystone_client.Client(username=os.environ['OS_USERNAME'],
                                  password=os.environ['OS_PASSWORD'],
                                  tenant_id=os.environ['OS_TENANT_ID'],
                                  auth_url=os.environ['OS_AUTH_URL'])
 
-    servicenames = [s._info['name'] for s in ksc.services.list()]
+    services = [s._info for s in ksc.services.list()]
+    servicenames = [s['name'] for s in services]
     ps_service_exists = PRODUCT_STREAMS_SERVICE_NAME in servicenames
     swift_exists = 'swift' in servicenames
 
@@ -233,7 +244,12 @@ if __name__ == "__main__":
 
     if ps_service_exists and charm_conf['use_swift'] and swift_exists:
         log.info("Updating product streams service.")
-        update_product_streams_service(ksc)
+        try:
+            update_product_streams_service(ksc, services,
+                                           charm_conf['region'])
+        except:
+            log.exception("Exception during update_product_streams_service")
+
     else:
         log.info("Not updating product streams service.")
 

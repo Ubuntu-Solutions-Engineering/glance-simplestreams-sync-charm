@@ -56,7 +56,8 @@ class MirrorsConfigServiceContext(OSContextGenerator):
         hookenv.log("Generating template ctxt for simplestreams-image-service")
         config = hookenv.config()
         return dict(mirror_list=config['mirror_list'],
-                    use_swift=config['use_swift'])
+                    use_swift=config['use_swift'],
+                    region=config['region'])
 
 
 release = get_os_codename_package('glance-common', fatal=False) or 'icehouse'
@@ -103,12 +104,18 @@ def uninstall_cron_scripts():
 
 @hooks.hook('identity-service-relation-joined')
 def identity_service_joined(relation_id=None):
-    # generate bogus service url to make keystone happy.
-    # we will not be starting anything to pay attention to this URL.
+    config = hookenv.config()
+
+    # Generate temporary bogus service URL to make keystone charm
+    # happy. The sync script will replace it with the endpoint for
+    # swift, because when this hook is fired, we do not yet
+    # necessarily know the swift endpoint URL (it might not even exist
+    # yet).
+
     url = 'http://' + hookenv.unit_get('private-address')
     relation_data = {
         'service': 'image-stream',
-        'region': 'RegionOne',  # config('region'),
+        'region': config['region'],
         'public_url': url,
         'admin_url': url,
         'internal_url': url}
