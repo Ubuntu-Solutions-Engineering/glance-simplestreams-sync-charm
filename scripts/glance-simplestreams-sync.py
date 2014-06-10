@@ -24,34 +24,7 @@
 # juju hook context itself.
 
 import logging
-import os
-from simplestreams.mirrors import glance, UrlMirrorReader
-from simplestreams.objectstores.swift import SwiftObjectStore
-from simplestreams.util import read_signed, path_from_mirror_url
-import sys
-import yaml
 
-KEYRING = '/usr/share/keyrings/ubuntu-cloudimage-keyring.gpg'
-CONF_FILE_DIR = os.environ.get('GLANCE_SIMPLESTREAMS_SYNC_CONF_DIR',
-                               '/etc/glance-simplestreams-sync')
-MIRRORS_CONF_FILE_NAME = os.path.join(CONF_FILE_DIR, 'mirrors.yaml')
-ID_CONF_FILE_NAME = os.path.join(CONF_FILE_DIR, 'identity.yaml')
-
-# juju looks in simplestreams/data/* in swift to figure out which
-# images to deploy, so this path isn't really configurable even though
-# it is.
-SWIFT_DATA_DIR = 'simplestreams/data/'
-
-# TODOs:
-#   - We might want to allow people to set regions as well, so
-#     you can have one charm sync to one region, instead of doing a cross
-#     region sync.
-#   - allow people to specify their own policy, since they can specify
-#     their own mirrors.
-#   - potentially allow people to specify backup mirrors?
-#   - debug keyring support
-#   - figure out what content_id is and whether we should allow users to
-#     set it
 
 def setup_logging():
     logfilename = '/var/log/glance-simplestreams-sync.log'
@@ -61,11 +34,49 @@ def setup_logging():
         '%(message)s',
         datefmt='%m-%d %H:%M:%S'))
 
-    logger = logging.getLogger('')
+    logger = logging.getLogger()
     logger.setLevel('DEBUG')
     logger.addHandler(h)
 
     return logger
+
+log = setup_logging()
+
+
+import atexit
+from keystoneclient.v2_0 import client as keystone_client
+import os
+from simplestreams.mirrors import glance, UrlMirrorReader
+from simplestreams.objectstores.swift import SwiftObjectStore
+from simplestreams.util import read_signed, path_from_mirror_url
+import sys
+import yaml
+
+KEYRING = '/usr/share/keyrings/ubuntu-cloudimage-keyring.gpg'
+CONF_FILE_DIR = '/etc/glance-simplestreams-sync'
+MIRRORS_CONF_FILE_NAME = os.path.join(CONF_FILE_DIR, 'mirrors.yaml')
+ID_CONF_FILE_NAME = os.path.join(CONF_FILE_DIR, 'identity.yaml')
+
+SYNC_RUNNING_FLAG_FILE_NAME = os.path.join(CONF_FILE_DIR, 'sync-running.pid')
+
+# juju looks in simplestreams/data/* in swift to figure out which
+# images to deploy, so this path isn't really configurable even though
+# it is.
+SWIFT_DATA_DIR = 'simplestreams/data/'
+
+PRODUCT_STREAMS_SERVICE_NAME = 'image-stream'
+PRODUCT_STREAMS_SERVICE_TYPE = 'product-streams'
+PRODUCT_STREAMS_SERVICE_DESC = 'Ubuntu Product Streams'
+
+CRON_POLL_FILENAME = '/etc/cron.d/glance_simplestreams_sync_fastpoll'
+
+# TODOs:
+#   - allow people to specify their own policy, since they can specify
+#     their own mirrors.
+#   - potentially allow people to specify backup mirrors?
+#   - debug keyring support
+#   - figure out what content_id is and whether we should allow users to
+#     set it
 
 
 def policy(content, path):
@@ -81,11 +92,8 @@ def read_conf(filename):
     return confobj
 
 
-if __name__ == "__main__":
-    
-    log = setup_logging()
-
-    conf_files =  [ID_CONF_FILE_NAME, MIRRORS_CONF_FILE_NAME]
+def get_conf():
+    conf_files = [ID_CONF_FILE_NAME, MIRRORS_CONF_FILE_NAME]
     for conf_file_name in conf_files:
         if not os.path.exists(conf_file_name):
             log.info("{} does not exist, exiting.".format(conf_file_name))
@@ -102,6 +110,10 @@ if __name__ == "__main__":
                  "{}".format(MIRRORS_CONF_FILE_NAME, mirrors))
         sys.exit(1)
 
+    return id_conf, mirrors
+
+
+def set_openstack_env(id_conf, charm_conf):
     auth_url = '%s://%s:%s/v2.0' % (id_conf['auth_protocol'],
                                     id_conf['auth_host'],
                                     id_conf['auth_port'])
@@ -109,7 +121,11 @@ if __name__ == "__main__":
     os.environ['OS_USERNAME'] = id_conf['admin_user']
     os.environ['OS_PASSWORD'] = id_conf['admin_password']
     os.environ['OS_TENANT_ID'] = id_conf['admin_tenant_id']
-    # TODO: region name
+
+    os.environ['OS_REGION_NAME'] = charm_conf['region']
+
+
+def do_sync(mirrors):
 
     for mirror_info in mirrors['mirror_list']:
         mirror_url, initial_path = path_from_mirror_url(mirror_info['url'],
@@ -128,3 +144,123 @@ if __name__ == "__main__":
         tmirror = glance.GlanceMirror(config=config, objectstore=store)
         log.info("calling GlanceMirror.sync")
         tmirror.sync(smirror, path=initial_path)
+
+
+def update_product_streams_service(ksc, services, region):
+    """
+    Updates URLs of product-streams endpoint to point to swift URLs.
+    """
+
+    swift_services = [s for s in services
+                      if s['name'] == 'swift']
+    if len(swift_services) != 1:
+        log.error("found %d swift services. expecting one."
+                  " - not updating endpoint.".format(len(swift_services)))
+        return
+
+    swift_service_id = swift_services[0]['id']
+
+    endpoints = [e._info for e in ksc.endpoints.list()
+                 if e._info['region'] == region]
+
+    swift_endpoints = [e for e in endpoints
+                       if e['service_id'] == swift_service_id]
+    if len(swift_endpoints) != 1:
+        log.warning("found %d swift endpoints, expecting one - not"
+                    " updating product-streams"
+                    " endpoint.".format(len(swift_endpoints)))
+        return
+
+    swift_endpoint = swift_endpoints[0]
+
+    ps_services = [s for s in services
+                   if s['name'] == PRODUCT_STREAMS_SERVICE_NAME]
+    if len(ps_services) != 1:
+        log.error("found %d product-streams services. expecting one."
+                  " - not updating endpoint.".format(len(ps_services)))
+        return
+
+    ps_service_id = ps_services[0]['id']
+
+    ps_endpoints = [e for e in endpoints
+                    if e['service_id'] == ps_service_id]
+
+    if len(ps_endpoints) != 1:
+        log.warning("found %d product-streams endpoints in region {},"
+                    " expecting one - not updating"
+                    " endpoint".format(region,
+                                       len(ps_endpoints)))
+        return
+
+    log.info("Deleting existing product-streams endpoint: ")
+    ksc.endpoints.delete(ps_endpoints[0]['id'])
+
+    create_args = dict(region=region,
+                       service_id=ps_service_id,
+                       publicurl=swift_endpoint['publicurl'],
+                       adminurl=swift_endpoint['adminurl'],
+                       internalurl=swift_endpoint['internalurl'])
+    log.info("creating product-streams endpoint: {}".format(create_args))
+    ksc.endpoints.create(**create_args)
+
+
+def cleanup():
+    try:
+        os.unlink(SYNC_RUNNING_FLAG_FILE_NAME)
+    except OSError as e:
+        if e.errno != 2:
+            raise e
+
+if __name__ == "__main__":
+
+    log.info("glance-simplestreams-sync started.")
+
+    if os.path.exists(SYNC_RUNNING_FLAG_FILE_NAME):
+        log.info("sync started while pidfile exists, exiting")
+        sys.exit(0)
+
+    atexit.register(cleanup)
+
+    with open(SYNC_RUNNING_FLAG_FILE_NAME, 'w') as f:
+        f.write(str(os.getpid()))
+
+    id_conf, charm_conf = get_conf()
+
+    set_openstack_env(id_conf, charm_conf)
+
+    ksc = keystone_client.Client(username=os.environ['OS_USERNAME'],
+                                 password=os.environ['OS_PASSWORD'],
+                                 tenant_id=os.environ['OS_TENANT_ID'],
+                                 auth_url=os.environ['OS_AUTH_URL'])
+
+    services = [s._info for s in ksc.services.list()]
+    servicenames = [s['name'] for s in services]
+    ps_service_exists = PRODUCT_STREAMS_SERVICE_NAME in servicenames
+    swift_exists = 'swift' in servicenames
+
+    log.info("ps_service_exists={}, charm_conf['use_swift']={}"
+             ", swift_exists={}".format(ps_service_exists,
+                                        charm_conf['use_swift'],
+                                        swift_exists))
+
+    if ps_service_exists and charm_conf['use_swift'] and swift_exists:
+        log.info("Updating product streams service.")
+        try:
+            update_product_streams_service(ksc, services,
+                                           charm_conf['region'])
+        except:
+            log.exception("Exception during update_product_streams_service")
+
+    else:
+        log.info("Not updating product streams service.")
+
+    try:
+        log.info("Beginning image sync")
+        do_sync(charm_conf)
+    except Exception as e:
+        log.exception("Exception during do_sync")
+        log.error("Errors in sync, not changing cron frequency.")
+        sys.exit(1)
+
+    os.unlink(CRON_POLL_FILENAME)
+    log.info("Sync successful. Every-minute cron job is now removed.")

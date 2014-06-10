@@ -10,9 +10,17 @@ options:
       cloud-images.ubuntu.com.
   run:
     type: boolean
-    default: False
+    default: True
     description: "Should the sync be running or not?"
+  use_swift:
+    type: boolean
+    default: True
+    description: "Should the charm set up the product-streams endpoint with swift's URLs?"
   frequency:
     type: string
     default: "daily"
     description: "cron job frequency - one of ['hourly', 'daily', 'weekly']"
+  region:
+    type: string
+    default: "RegionOne"
+    description: "Openstack region to operate in."
