@@ -231,7 +231,7 @@ if __name__ == "__main__":
                                         charm_conf['use_swift'],
                                         swift_exists))
 
-    if not ps_service_exists and charm_conf['use_swift'] and swift_exists:
+    if ps_service_exists and charm_conf['use_swift'] and swift_exists:
         log.info("Updating product streams service.")
         update_product_streams_service(ksc)
     else:
