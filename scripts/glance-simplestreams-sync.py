@@ -157,7 +157,7 @@ def update_product_streams_service(ksc, services, region):
                   " - not updating endpoint.".format(len(swift_services)))
         return
 
-    swift_service_id = swift_services[0]['service_id']
+    swift_service_id = swift_services[0]['id']
 
     endpoints = [e._info for e in ksc.endpoints.list()
                  if e._info['region'] == region]
@@ -179,7 +179,7 @@ def update_product_streams_service(ksc, services, region):
                   " - not updating endpoint.".format(len(ps_services)))
         return
 
-    ps_service_id = ps_services[0]['service_id']
+    ps_service_id = ps_services[0]['id']
 
     ps_endpoints = [e for e in endpoints
                     if e['service_id'] == ps_service_id]
