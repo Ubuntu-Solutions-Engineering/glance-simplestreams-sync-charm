@@ -135,7 +135,11 @@ def do_sync(charm_conf):
 
         smirror = UrlMirrorReader(mirror_url, policy=policy)
 
-        store = SwiftObjectStore(SWIFT_DATA_DIR, region=charm_conf['region'])
+        if charm_conf['use_swift']:
+            store = SwiftObjectStore(SWIFT_DATA_DIR,
+                                     region=charm_conf['region'])
+        else:
+            store = None
 
         config = {'max_items': mirror_info['max'],
                   'keep_items': False,
