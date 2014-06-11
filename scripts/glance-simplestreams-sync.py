@@ -136,8 +136,7 @@ def do_sync(charm_conf):
         smirror = UrlMirrorReader(mirror_url, policy=policy)
 
         if charm_conf['use_swift']:
-            store = SwiftObjectStore(SWIFT_DATA_DIR,
-                                     region=charm_conf['region'])
+            store = SwiftObjectStore(SWIFT_DATA_DIR)
         else:
             store = None
 
@@ -145,8 +144,7 @@ def do_sync(charm_conf):
                   'keep_items': False,
                   'content_id': 'auto.sync'}
 
-        tmirror = glance.GlanceMirror(config=config, objectstore=store,
-                                      region=charm_conf)
+        tmirror = glance.GlanceMirror(config=config, objectstore=store)
         log.info("calling GlanceMirror.sync")
         tmirror.sync(smirror, path=initial_path)
 
