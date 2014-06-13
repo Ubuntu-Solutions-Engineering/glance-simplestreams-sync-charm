@@ -199,11 +199,21 @@ def update_product_streams_service(ksc, services, region):
     log.info("Deleting existing product-streams endpoint: ")
     ksc.endpoints.delete(ps_endpoints[0]['id'])
 
+    ps_public_url = swift_endpoint['publicurl']
+    if ps_public_url[-1] != '/':
+        ps_public_url += '/'
+    ps_public_url += SWIFT_DATA_DIR
+
+    ps_internal_url = swift_endpoint['internalurl']
+    if ps_internal_url[-1] != '/':
+        ps_internal_url += '/'
+    ps_internal_url += SWIFT_DATA_DIR
+
     create_args = dict(region=region,
                        service_id=ps_service_id,
-                       publicurl=swift_endpoint['publicurl'],
+                       publicurl=ps_public_url,
                        adminurl=swift_endpoint['adminurl'],
-                       internalurl=swift_endpoint['internalurl'])
+                       internalurl=ps_internal_url)
     log.info("creating product-streams endpoint: {}".format(create_args))
     ksc.endpoints.create(**create_args)
 
