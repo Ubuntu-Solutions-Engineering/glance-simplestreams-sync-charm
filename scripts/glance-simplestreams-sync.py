@@ -264,5 +264,7 @@ if __name__ == "__main__":
     except Exception as e:
         log.exception("Exception during do_sync")
 
-    os.unlink(CRON_POLL_FILENAME)
-    log.info("Initial sync attempt done. every-minute cronjob now removed.")
+    if os.path.exists(CRON_POLL_FILENAME):
+        os.unlink(CRON_POLL_FILENAME)
+        log.info("Initial sync attempt done. every-minute cronjob removed.")
+    log.info("sync done.")
