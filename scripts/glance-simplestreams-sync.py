@@ -50,6 +50,7 @@ from simplestreams.mirrors import glance, UrlMirrorReader
 from simplestreams.objectstores.swift import SwiftObjectStore
 from simplestreams.util import read_signed, path_from_mirror_url
 import sys
+from urlparse import urlsplit
 import yaml
 
 KEYRING = '/usr/share/keyrings/ubuntu-cloudimage-keyring.gpg'
@@ -199,15 +200,26 @@ def update_product_streams_service(ksc, services, region):
     log.info("Deleting existing product-streams endpoint: ")
     ksc.endpoints.delete(ps_endpoints[0]['id'])
 
-    ps_public_url = swift_endpoint['publicurl']
-    if ps_public_url[-1] != '/':
-        ps_public_url += '/'
-    ps_public_url += SWIFT_DATA_DIR
+    services_tenant_ids = [t.id for t in ksc.tenants.list()
+                           if t.name == 'services']
 
-    ps_internal_url = swift_endpoint['internalurl']
-    if ps_internal_url[-1] != '/':
-        ps_internal_url += '/'
-    ps_internal_url += SWIFT_DATA_DIR
+    if len(services_tenant_ids) != 1:
+        log.warning("found %d tenants named 'services',"
+                    " expecting one. Not updating"
+                    " endpoint".format(len(services_tenant_ids)))
+
+    services_tenant_id = services_tenant_ids[0]
+
+    path = "/v1/AUTH_{}/{}".format(services_tenant_id,
+                                   SWIFT_DATA_DIR)
+
+    swift_public_url = swift_endpoint['publicurl']
+    sr_p = urlsplit(swift_public_url)
+    ps_public_url = sr_p._replace(path=path).geturl()
+
+    swift_internal_url = swift_endpoint['internalurl']
+    sr_i = urlsplit(swift_internal_url)
+    ps_internal_url = sr_i._replace(path=path).geturl()
 
     create_args = dict(region=region,
                        service_id=ps_service_id,
