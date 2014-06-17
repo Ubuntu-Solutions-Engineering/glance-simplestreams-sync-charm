@@ -184,7 +184,7 @@ def install():
 
     apt_install(packages=['python-simplestreams', 'python-glanceclient',
                           'python-yaml', 'python-keystoneclient',
-                          'python-kombu'
+                          'python-kombu',
                           'python-swiftclient', 'ubuntu-cloudimage-keyring'])
 
     hookenv.log('end install hook.')
