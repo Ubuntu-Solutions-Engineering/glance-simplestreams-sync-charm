@@ -131,13 +131,14 @@ def identity_service_changed():
 
 @hooks.hook('install')
 def install():
-    hookenv.log("creating config dir at {}".format(CONF_FILE_DIR))
-    if not os.path.isdir(CONF_FILE_DIR):
-        if os.path.exists(CONF_FILE_DIR):
-            hookenv.log("error: CONF_FILE_DIR exists"
-                        " but is not a directory. exiting.")
-            return
-        os.mkdir(CONF_FILE_DIR)
+    for directory in [CONF_FILE_DIR, USR_SHARE_DIR]:
+        hookenv.log("creating config dir at {}".format(directory))
+        if not os.path.isdir(directory):
+            if os.path.exists(directory):
+                hookenv.log("error: {} exists but is not a directory."
+                            " exiting.".format(directory))
+                return
+            os.mkdir(directory)
 
     apt_install(packages=['python-simplestreams', 'python-glanceclient',
                           'python-yaml', 'python-keystoneclient',
