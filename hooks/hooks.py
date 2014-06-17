@@ -35,6 +35,7 @@ from charmhelpers.contrib.openstack.utils import get_os_codename_package
 from charmhelpers.contrib.openstack.templating import OSConfigRenderer
 
 CONF_FILE_DIR = '/etc/glance-simplestreams-sync'
+USR_SHARE_DIR = '/usr/share/glance-simplestreams-sync'
 
 MIRRORS_CONF_FILE_NAME = os.path.join(CONF_FILE_DIR, 'mirrors.yaml')
 ID_CONF_FILE_NAME = os.path.join(CONF_FILE_DIR, 'identity.yaml')
@@ -78,11 +79,11 @@ def install_cron_scripts():
     up-to-date.
 
     """
-    sync_script_source = "scripts/" + SCRIPT_NAME
-    shutil.copy(sync_script_source, CONF_FILE_DIR)
+    sync_script_source = os.path.join("scripts", SCRIPT_NAME)
+    shutil.copy(sync_script_source, USR_SHARE_DIR)
 
     config = hookenv.config()
-    installed_script = os.path.join(CONF_FILE_DIR, SCRIPT_NAME)
+    installed_script = os.path.join(USR_SHARE_DIR, SCRIPT_NAME)
     linkname = '/etc/cron.{f}/{s}'.format(f=config['frequency'],
                                           s=SCRIPT_NAME)
     os.symlink(installed_script, linkname)
@@ -130,13 +131,14 @@ def identity_service_changed():
 
 @hooks.hook('install')
 def install():
-    hookenv.log("creating config dir at {}".format(CONF_FILE_DIR))
-    if not os.path.isdir(CONF_FILE_DIR):
-        if os.path.exists(CONF_FILE_DIR):
-            hookenv.log("error: CONF_FILE_DIR exists"
-                        " but is not a directory. exiting.")
-            return
-        os.mkdir(CONF_FILE_DIR)
+    for directory in [CONF_FILE_DIR, USR_SHARE_DIR]:
+        hookenv.log("creating config dir at {}".format(directory))
+        if not os.path.isdir(directory):
+            if os.path.exists(directory):
+                hookenv.log("error: {} exists but is not a directory."
+                            " exiting.".format(directory))
+                return
+            os.mkdir(directory)
 
     apt_install(packages=['python-simplestreams', 'python-glanceclient',
                           'python-yaml', 'python-keystoneclient',
