@@ -144,6 +144,7 @@ def do_sync(charm_conf):
         config = {'max_items': mirror_info['max'],
                   'keep_items': False,
                   'content_id': 'auto.sync',
+                  'cloud_name': charm_conf['cloud_name'],
                   'item_filters': mirror_info['item_filters']}
 
         tmirror = glance.GlanceMirror(config=config, objectstore=store)
