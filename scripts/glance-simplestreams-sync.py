@@ -46,11 +46,13 @@ log = setup_logging()
 import atexit
 from keystoneclient.v2_0 import client as keystone_client
 import keystoneclient.exceptions as keystone_exceptions
+import kombu
 import os
 from simplestreams.mirrors import glance, UrlMirrorReader
 from simplestreams.objectstores.swift import SwiftObjectStore
 from simplestreams.util import read_signed, path_from_mirror_url
 import sys
+import traceback
 from urlparse import urlsplit
 import yaml
 
@@ -237,12 +239,39 @@ def update_product_streams_service(ksc, services, region):
     ksc.endpoints.create(**create_args)
 
 
+def setup_rabbit_connection(id_conf):
+    hosts = id_conf.get('rabbit_hosts', None)
+    if hosts is not None:
+        host = hosts[0]
+    else:
+        host = id_conf['rabbit_host']
+
+    url = "amqp://{}:{}@{}/{}".format(id_conf['rabbit_userid'],
+                                      id_conf['rabbit_password'],
+                                      host,
+                                      id_conf['rabbit_virtual_host'])
+
+    conn = kombu.BrokerConnection(url)
+    status_message_exchange = kombu.Exchange("glance-simplestreams-sync-status")
+    status_message_queue = kombu.Queue("glance-simplestreams-sync-status",
+                                       exchange=status_message_exchange)
+
+    status_message_queue(conn.channel()).declare()
+
+    def send_status_message(msg):
+        with conn.Producer(exchange=status_message_exchange) as producer:
+            producer.publish(msg)
+
+    return conn, send_status_message
+
+
 def cleanup():
     try:
         os.unlink(SYNC_RUNNING_FLAG_FILE_NAME)
     except OSError as e:
         if e.errno != 2:
             raise e
+
 
 if __name__ == "__main__":
 
@@ -288,9 +317,14 @@ if __name__ == "__main__":
         log.info("Not updating product streams service.")
 
     should_delete_cron_poll = True
+    conn, send_status_message = setup_rabbit_connection(id_conf)
+
     try:
         log.info("Beginning image sync")
+        send_status_message({"status": "Starting sync"})
         do_sync(charm_conf)
+        send_status_message({"status": "sync done."})
+
     except keystone_exceptions.EndpointNotFound as e:
         # matching string "{PublicURL} endpoint for {type}{region} not
         # found".  where {type} is 'image' and {region} is potentially
@@ -298,8 +332,13 @@ if __name__ == "__main__":
         if 'endpoint for image' in e.message:
             should_delete_cron_poll = False
             log.info("Glance endpoint not found, will continue polling.")
+
     except Exception as e:
         log.exception("Exception during do_sync")
+        send_status_message({"status": "Error",
+                             "message": traceback.format_exc()})
+
+    conn.close()
 
     if os.path.exists(CRON_POLL_FILENAME) and should_delete_cron_poll:
         os.unlink(CRON_POLL_FILENAME)
