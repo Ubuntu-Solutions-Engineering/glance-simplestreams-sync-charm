@@ -27,5 +27,5 @@ options:
     description: "Openstack region to operate in."
   cloud_name:
     type: string
-    default: "openstack"
+    default: "glance-simplestreams-sync-openstack"
     description: "Cloud name to be used in simplestreams index file"
