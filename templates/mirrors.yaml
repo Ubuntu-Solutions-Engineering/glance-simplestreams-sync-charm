@@ -1,3 +1,4 @@
 mirror_list: {{ mirror_list }}
 use_swift: {{ use_swift }}
 region: {{ region }}
+cloud_name: {{ cloud_name }}

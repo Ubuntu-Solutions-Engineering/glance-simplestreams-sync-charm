@@ -58,7 +58,8 @@ class MirrorsConfigServiceContext(OSContextGenerator):
         config = hookenv.config()
         return dict(mirror_list=config['mirror_list'],
                     use_swift=config['use_swift'],
-                    region=config['region'])
+                    region=config['region'],
+                    cloud_name=config['cloud_name'])
 
 
 release = get_os_codename_package('glance-common', fatal=False) or 'icehouse'
