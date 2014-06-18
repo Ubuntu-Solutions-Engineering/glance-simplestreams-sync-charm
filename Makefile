@@ -2,7 +2,7 @@
 PYTHON := /usr/bin/env python
 
 lint:
-	@pyflakes hooks/*.py unit_tests
+	@pyflakes hooks/*.py scripts/*.py
 	@charm proof
 
 test:
