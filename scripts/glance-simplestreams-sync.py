@@ -115,9 +115,9 @@ def get_conf():
 
 
 def set_openstack_env(id_conf, charm_conf):
-    auth_url = '%s://%s:%s/v2.0' % (id_conf['auth_protocol'],
-                                    id_conf['auth_host'],
-                                    id_conf['auth_port'])
+    auth_url = '%s://%s:%s/v2.0' % (id_conf['service_protocol'],
+                                    id_conf['service_host'],
+                                    id_conf['service_port'])
     os.environ['OS_AUTH_URL'] = auth_url
     os.environ['OS_USERNAME'] = id_conf['admin_user']
     os.environ['OS_PASSWORD'] = id_conf['admin_password']
