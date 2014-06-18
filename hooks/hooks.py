@@ -167,6 +167,12 @@ def config_changed():
             install_cron_scripts()
 
 
+@hooks.hook('upgrade-charm')
+def upgrade_charm():
+    install()
+    configs.write_all()
+
+
 if __name__ == '__main__':
     try:
         hooks.execute(sys.argv)
