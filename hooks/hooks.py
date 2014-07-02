@@ -71,11 +71,8 @@ configs.register(MIRRORS_CONF_FILE_NAME, [MirrorsConfigServiceContext()])
 configs.register(ID_CONF_FILE_NAME, [IdentityServiceContext()])
 
 
-def install_cron_scripts():
-    """Installs two cron jobs.
-    one in /etc/cron.$frequency/ to sync script for repeating sync
-
-    one in /cron.d every-minute job in crontab for quick polling.
+def install_cron_script():
+    """Installs cron job in /etc/cron.$frequency/ for repeating sync
 
     Script is not a template but we always overwrite, to ensure it is
     up-to-date.
@@ -90,17 +87,22 @@ def install_cron_scripts():
                                           s=CRON_JOB_FILENAME)
     os.symlink(installed_script, linkname)
 
+
+def install_cron_poll():
+    "Installs /etc/cron.d every-minute job in crontab for quick polling."
     poll_file_source = os.path.join('scripts', CRON_POLL_FILENAME)
     shutil.copy(poll_file_source, '/etc/cron.d/')
 
 
-def uninstall_cron_scripts():
-    """Removes sync program from any place it might be, and removes
-    polling cron job."""
-    for fn in glob.glob("/etc/cron.*/" + SCRIPT_NAME):
+def uninstall_cron_script():
+    "Removes sync program from any cron place it might be"
+    for fn in glob.glob("/etc/cron.*/" + CRON_JOB_FILENAME):
         if os.path.exists(fn):
             os.remove(fn)
 
+
+def uninstall_cron_poll():
+    "Removes cron poll"
     if os.path.exists(CRON_POLL_FILEPATH):
         os.remove(CRON_POLL_FILEPATH)
 
@@ -156,18 +158,27 @@ def config_changed():
     configs.write(MIRRORS_CONF_FILE_NAME)
 
     config = hookenv.config()
+
+    if config.changed('frequency'):
+        hookenv.log("'frequency' changed, moving cron job to "
+                    "/etc/cron.{}".format(config['frequency']))
+        uninstall_cron_script()
+        install_cron_script()
+
     if config.changed('run'):
-        hookenv.log("removing existing cron jobs for simplestreams sync")
-        uninstall_cron_scripts()
+        hookenv.log("'run' changed, removing existing cron jobs")
+        uninstall_cron_script()
+        uninstall_cron_poll()
 
         if not config['run']:
-            hookenv.log("'run' config disabled, exiting")
+            hookenv.log("'run' config now disabled, exiting")
         else:
-            hookenv.log("'run' config enabled, installing to "
+            hookenv.log("'run' config now enabled, installing to "
                         "/etc/cron.{}".format(config['frequency']))
             hookenv.log("installing {} for polling".format(CRON_POLL_FILEPATH))
-            install_cron_scripts()
-
+            install_cron_poll()
+            install_cron_script()
+    config.save()
 
 @hooks.hook('upgrade-charm')
 def upgrade_charm():
