@@ -160,10 +160,12 @@ def config_changed():
     config = hookenv.config()
 
     if config.changed('frequency'):
-        hookenv.log("'frequency' changed, moving cron job to "
-                    "/etc/cron.{}".format(config['frequency']))
+        hookenv.log("'frequency' changed, removing cron job")
         uninstall_cron_script()
-        install_cron_script()
+        if config['run']:
+            hookenv.log("moving cron job to "
+                        "/etc/cron.{}".format(config['frequency']))
+            install_cron_script()
 
     if config.changed('run'):
         hookenv.log("'run' changed, removing existing cron jobs")
