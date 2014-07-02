@@ -42,6 +42,7 @@ ID_CONF_FILE_NAME = os.path.join(CONF_FILE_DIR, 'identity.yaml')
 
 SCRIPT_NAME = "glance-simplestreams-sync.py"
 
+CRON_JOB_FILENAME = 'glance_simplestreams_sync'
 CRON_POLL_FILENAME = 'glance_simplestreams_sync_fastpoll'
 CRON_POLL_FILEPATH = os.path.join('/etc/cron.d', CRON_POLL_FILENAME)
 
@@ -86,7 +87,7 @@ def install_cron_scripts():
     config = hookenv.config()
     installed_script = os.path.join(USR_SHARE_DIR, SCRIPT_NAME)
     linkname = '/etc/cron.{f}/{s}'.format(f=config['frequency'],
-                                          s=SCRIPT_NAME)
+                                          s=CRON_JOB_FILENAME)
     os.symlink(installed_script, linkname)
 
     poll_file_source = os.path.join('scripts', CRON_POLL_FILENAME)
