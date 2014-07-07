@@ -26,6 +26,7 @@ import os
 import sys
 import shutil
 
+from charmhelpers.fetch import apt_install, add_source, apt_update
 from charmhelpers.core import hookenv
 from charmhelpers.fetch import apt_install
 from charmhelpers.payload.execd import execd_preinstall
@@ -181,6 +182,9 @@ def install():
                             " exiting.".format(directory))
                 return
             os.mkdir(directory)
+
+    add_source('ppa:cloud-installer/simplestreams-testing')
+    apt_update()
 
     apt_install(packages=['python-simplestreams', 'python-glanceclient',
                           'python-yaml', 'python-keystoneclient',
