@@ -183,6 +183,7 @@ def install():
                 return
             os.mkdir(directory)
 
+    hookenv.log('adding cloud-installer PPA')
     add_source('ppa:cloud-installer/simplestreams-testing')
     apt_update()
 

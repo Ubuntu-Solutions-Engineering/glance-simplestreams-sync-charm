@@ -82,6 +82,35 @@ CRON_POLL_FILENAME = '/etc/cron.d/glance_simplestreams_sync_fastpoll'
 #   - figure out what content_id is and whether we should allow users to
 #     set it
 
+try:
+    from simplestreams.util import ProgressAggregator
+    SIMPLESTREAMS_HAS_PROGRESS = True
+except ImportError:
+    class ProgressAggregator:
+        "Dummy class to allow charm to load with old simplestreams"
+    SIMPLESTREAMS_HAS_PROGRESS = False
+
+
+class StatusMessageProgressAggregator(ProgressAggregator):
+    def __init__(self, remaining_items, send_status_message):
+        super(StatusMessageProgressAggregator, self).__init__(remaining_items)
+        self.send_status_message = send_status_message
+
+    def emit(self, progress):
+        size = float(progress['size'])
+        written = float(progress['written'])
+        cur = self.total_image_count - len(self.remaining_items) + 1
+        totpct = float(self.total_written) / self.total_size
+        msg = "{name} {filepct:.0%}\n"\
+              "({cur} of {tot} images) total: "\
+              "{totpct:.0%}".format(name=progress['name'],
+                                    filepct=(written / size),
+                                    cur=cur,
+                                    tot=self.total_image_count,
+                                    totpct=totpct)
+        self.send_status_message(dict(status="Syncing",
+                                      message=msg))
+
 
 def policy(content, path):
     if path.endswith('sjson'):
@@ -129,7 +158,7 @@ def set_openstack_env(id_conf, charm_conf):
     os.environ['OS_REGION_NAME'] = charm_conf['region']
 
 
-def do_sync(charm_conf):
+def do_sync(charm_conf, send_status_message):
 
     for mirror_info in charm_conf['mirror_list']:
         mirror_url, initial_path = path_from_mirror_url(mirror_info['url'],
@@ -154,8 +183,24 @@ def do_sync(charm_conf):
                   'cloud_name': charm_conf['cloud_name'],
                   'item_filters': mirror_info['item_filters']}
 
-        tmirror = glance.GlanceMirror(config=config, objectstore=store,
-                                      name_prefix=charm_conf['name_prefix'])
+        mirror_args = dict(config=config, objectstore=store,
+                           name_prefix=charm_conf['name_prefix'])
+
+        if SIMPLESTREAMS_HAS_PROGRESS:
+            log.info("Calling DryRun mirror to get item list")
+
+            drmirror = glance.ItemInfoDryRunMirror(config=config,
+                                                   objectstore=store)
+            drmirror.sync(smirror, path=initial_path)
+            p = StatusMessageProgressAggregator(drmirror.items,
+                                                send_status_message)
+            mirror_args['progress_callback'] = p.progress_callback
+        else:
+            log.info("Detected simplestreams version without progress"
+                     " update support. Only limited feedback available.")
+
+        tmirror = glance.GlanceMirror(**mirror_args)
+
         log.info("calling GlanceMirror.sync")
         tmirror.sync(smirror, path=initial_path)
 
@@ -321,9 +366,12 @@ if __name__ == "__main__":
 
     try:
         log.info("Beginning image sync")
-        send_status_message({"status": "Starting sync"})
-        do_sync(charm_conf)
-        send_status_message({"status": "sync done."})
+
+        send_status_message({"status": "Started",
+                             "message": "Sync starting."})
+        do_sync(charm_conf, send_status_message)
+        send_status_message({"status": "Done",
+                             "message": "Sync done."})
 
     except keystone_exceptions.EndpointNotFound as e:
         # matching string "{PublicURL} endpoint for {type}{region} not
