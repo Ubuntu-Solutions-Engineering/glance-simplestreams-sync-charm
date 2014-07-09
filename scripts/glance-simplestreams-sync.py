@@ -362,7 +362,14 @@ if __name__ == "__main__":
         log.info("Not updating product streams service.")
 
     should_delete_cron_poll = True
-    conn, send_status_message = setup_rabbit_connection(id_conf)
+
+    try:
+        conn, send_status_message = setup_rabbit_connection(id_conf)
+    except:
+        log.exception("Could not set up rabbit connection."
+                      " Continuing without status update support")
+        conn = None
+        send_status_message = lambda _: None
 
     try:
         log.info("Beginning image sync")
@@ -386,7 +393,8 @@ if __name__ == "__main__":
         send_status_message({"status": "Error",
                              "message": traceback.format_exc()})
 
-    conn.close()
+    if conn:
+        conn.close()
 
     if os.path.exists(CRON_POLL_FILENAME) and should_delete_cron_poll:
         os.unlink(CRON_POLL_FILENAME)
