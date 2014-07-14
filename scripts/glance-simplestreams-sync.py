@@ -142,6 +142,7 @@ def do_sync(charm_conf):
             store = None
 
         config = {'max_items': mirror_info['max'],
+                  'modify_hook': charm_conf['modify_hook_scripts'],
                   'keep_items': False,
                   'content_id': 'auto.sync',
                   'cloud_name': charm_conf['cloud_name'],

@@ -49,15 +49,47 @@ CRON_POLL_FILEPATH = os.path.join('/etc/cron.d', CRON_POLL_FILENAME)
 hooks = hookenv.Hooks()
 
 
+class MultipleImageModifierSubordinatesIsNotSupported(Exception):
+    """Raise this if multiple image-modifier subordinates are related to
+    this charm.
+    """
+
+
 class MirrorsConfigServiceContext(OSContextGenerator):
-    """Context for mirrors.yaml template - does not use relation info.
+    """Context for mirrors.yaml template.
+
+    Uses image-modifier relation if available to set
+    modify_hook_scripts config value.
+
     """
     interfaces = ['simplestreams-image-service']
 
     def __call__(self):
         hookenv.log("Generating template ctxt for simplestreams-image-service")
         config = hookenv.config()
+
+        modify_hook_scripts = []
+        image_modifiers = hookenv.relations_of_type('image-modifier')
+        if len(image_modifiers) > 1:
+            raise MultipleImageModifierSubordinatesIsNotSupported()
+
+        if len(image_modifiers) == 1:
+            im = image_modifiers[0]
+            try:
+                modify_hook_scripts.append(im['script-path'])
+
+            except KeyError as ke:
+                hookenv.log('relation {} yielded '
+                            'exception {} - ignoring.'.format(repr(im),
+                                                              repr(ke)))
+
+        # default no-op so that None still means "missing" for config
+        # validation (see elsewhere)
+        if len(modify_hook_scripts) == 0:
+            modify_hook_scripts.append('/bin/true')
+
         return dict(mirror_list=config['mirror_list'],
+                    modify_hook_scripts=', '.join(modify_hook_scripts),
                     use_swift=config['use_swift'],
                     region=config['region'],
                     cloud_name=config['cloud_name'])
@@ -151,7 +183,9 @@ def install():
     hookenv.log('end install hook.')
 
 
-@hooks.hook('config-changed')
+@hooks.hook('config-changed',
+            'image-modifier-relation-changed',
+            'image-modifier-relation-joined')
 def config_changed():
     hookenv.log('begin config-changed hook.')
 

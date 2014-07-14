@@ -1,4 +1,5 @@
 mirror_list: {{ mirror_list }}
+modify_hook_scripts: {{ modify_hook_scripts }}
 use_swift: {{ use_swift }}
 region: {{ region }}
 cloud_name: {{ cloud_name }}

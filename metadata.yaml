@@ -10,6 +10,9 @@ subordinate: false
 provides:
   simplestreams-image-service:
     interface: glance-simplestreams-sync
+  image-modifier:
+    scope: container
+    interface: script-provider
 requires:
   identity-service:
     interface: keystone
