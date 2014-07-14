@@ -26,8 +26,9 @@ import os
 import sys
 import shutil
 
-from charmhelpers.fetch import apt_install
 from charmhelpers.core import hookenv
+from charmhelpers.fetch import apt_install
+from charmhelpers.payload.execd import execd_preinstall
 
 from charmhelpers.contrib.openstack.context import (IdentityServiceContext,
                                                     OSContextGenerator)
@@ -135,6 +136,7 @@ def identity_service_changed():
 
 @hooks.hook('install')
 def install():
+    execd_preinstall()
     for directory in [CONF_FILE_DIR, USR_SHARE_DIR]:
         hookenv.log("creating config dir at {}".format(directory))
         if not os.path.isdir(directory):
