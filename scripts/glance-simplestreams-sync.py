@@ -148,7 +148,8 @@ def do_sync(charm_conf):
                   'cloud_name': charm_conf['cloud_name'],
                   'item_filters': mirror_info['item_filters']}
 
-        tmirror = glance.GlanceMirror(config=config, objectstore=store)
+        tmirror = glance.GlanceMirror(config=config, objectstore=store,
+                                      name_prefix=charm_conf['name_prefix'])
         log.info("calling GlanceMirror.sync")
         tmirror.sync(smirror, path=initial_path)
 

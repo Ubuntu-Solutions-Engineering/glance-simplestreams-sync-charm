@@ -29,3 +29,7 @@ options:
     type: string
     default: "glance-simplestreams-sync-openstack"
     description: "Cloud name to be used in simplestreams index file"
+  name_prefix:
+    type: string
+    default: "auto-sync/"
+    description: "This is prefixed to the object name when uploading to glance."

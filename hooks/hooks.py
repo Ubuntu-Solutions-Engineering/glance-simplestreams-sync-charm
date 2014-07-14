@@ -91,6 +91,7 @@ class MirrorsConfigServiceContext(OSContextGenerator):
 
         return dict(mirror_list=config['mirror_list'],
                     modify_hook_scripts=', '.join(modify_hook_scripts),
+                    name_prefix=config['name_prefix'],
                     use_swift=config['use_swift'],
                     region=config['region'],
                     cloud_name=config['cloud_name'])
