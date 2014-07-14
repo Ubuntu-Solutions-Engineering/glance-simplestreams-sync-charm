@@ -4,3 +4,4 @@ name_prefix: {{ name_prefix }}
 use_swift: {{ use_swift }}
 region: {{ region }}
 cloud_name: {{ cloud_name }}
+content_id_template: {{ content_id_template }}

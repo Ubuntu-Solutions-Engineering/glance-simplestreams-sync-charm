@@ -141,10 +141,13 @@ def do_sync(charm_conf):
         else:
             store = None
 
+        content_id = charm_conf['content_id_template'].format(
+            region=charm_conf['region'])
+
         config = {'max_items': mirror_info['max'],
                   'modify_hook': charm_conf['modify_hook_scripts'],
                   'keep_items': False,
-                  'content_id': 'auto.sync',
+                  'content_id': content_id,
                   'cloud_name': charm_conf['cloud_name'],
                   'item_filters': mirror_info['item_filters']}
 

@@ -33,3 +33,24 @@ options:
     type: string
     default: "auto-sync/"
     description: "This is prefixed to the object name when uploading to glance."
+  content_id_template:
+    type: string
+    default: "auto.sync"
+    description: >
+      A Python-style .format() template to use when generating
+      content_id properties for images uploaded to glance.
+
+      The content_id is considered when matching images between the
+      source and destination to decide which images to mirror.  By
+      varying this value you can mirror disjoint sets of images from
+      the same source into a single glance, either by using multiple
+      deployments of this charm, or by using a tool such as
+      sstream-mirror-glance, and they will not interfere with each
+      other.
+
+      Here is a more interesting example value:
+
+          com.example.customstack.{region}:ubuntu:celery-worker
+
+      Currently the only available substitution is "region".  Any
+      other attempted substitutions will break the sync script.
