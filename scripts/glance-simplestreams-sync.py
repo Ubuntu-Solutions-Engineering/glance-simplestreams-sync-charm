@@ -45,6 +45,7 @@ log = setup_logging()
 
 import atexit
 from keystoneclient.v2_0 import client as keystone_client
+import keystoneclient.exceptions as keystone_exceptions
 import os
 from simplestreams.mirrors import glance, UrlMirrorReader
 from simplestreams.objectstores.swift import SwiftObjectStore
@@ -286,13 +287,21 @@ if __name__ == "__main__":
     else:
         log.info("Not updating product streams service.")
 
+    should_delete_cron_poll = True
     try:
         log.info("Beginning image sync")
         do_sync(charm_conf)
+    except keystone_exceptions.EndpointNotFound as e:
+        # matching string "{PublicURL} endpoint for {type}{region} not
+        # found".  where {type} is 'image' and {region} is potentially
+        # not empty so we only match on this substring:
+        if 'endpoint for image' in e.message:
+            should_delete_cron_poll = False
+            log.info("Glance endpoint not found, will continue polling.")
     except Exception as e:
         log.exception("Exception during do_sync")
 
-    if os.path.exists(CRON_POLL_FILENAME):
+    if os.path.exists(CRON_POLL_FILENAME) and should_delete_cron_poll:
         os.unlink(CRON_POLL_FILENAME)
         log.info("Initial sync attempt done. every-minute cronjob removed.")
     log.info("sync done.")
