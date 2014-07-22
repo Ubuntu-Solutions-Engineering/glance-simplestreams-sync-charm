@@ -293,6 +293,7 @@ if __name__ == "__main__":
         # not empty so we only match on this substring:
         if 'endpoint for image' in e.message:
             should_delete_cron_poll = False
+            log.info("Glance endpoint not found, will continue polling.")
     except Exception as e:
         log.exception("Exception during do_sync")
 
