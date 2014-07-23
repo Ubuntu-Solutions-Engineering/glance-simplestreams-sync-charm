@@ -16,3 +16,5 @@ provides:
 requires:
   identity-service:
     interface: keystone
+  amqp:
+    interface: rabbitmq

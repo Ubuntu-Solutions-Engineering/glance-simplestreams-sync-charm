@@ -26,11 +26,13 @@ import os
 import sys
 import shutil
 
+from charmhelpers.fetch import apt_install, add_source, apt_update
 from charmhelpers.core import hookenv
 from charmhelpers.fetch import apt_install
 from charmhelpers.payload.execd import execd_preinstall
 
-from charmhelpers.contrib.openstack.context import (IdentityServiceContext,
+from charmhelpers.contrib.openstack.context import (AMQPContext,
+                                                    IdentityServiceContext,
                                                     OSContextGenerator)
 from charmhelpers.contrib.openstack.utils import get_os_codename_package
 from charmhelpers.contrib.openstack.templating import OSConfigRenderer
@@ -103,7 +105,8 @@ configs = OSConfigRenderer(templates_dir='templates/',
                            openstack_release=release)
 
 configs.register(MIRRORS_CONF_FILE_NAME, [MirrorsConfigServiceContext()])
-configs.register(ID_CONF_FILE_NAME, [IdentityServiceContext()])
+configs.register(ID_CONF_FILE_NAME, [IdentityServiceContext(),
+                                     AMQPContext()])
 
 
 def install_cron_script():
@@ -180,8 +183,13 @@ def install():
                 return
             os.mkdir(directory)
 
+    hookenv.log('adding cloud-installer PPA')
+    add_source('ppa:cloud-installer/simplestreams-testing')
+    apt_update()
+
     apt_install(packages=['python-simplestreams', 'python-glanceclient',
                           'python-yaml', 'python-keystoneclient',
+                          'python-kombu',
                           'python-swiftclient', 'ubuntu-cloudimage-keyring'])
 
     hookenv.log('end install hook.')
@@ -224,6 +232,20 @@ def config_changed():
 def upgrade_charm():
     install()
     configs.write_all()
+
+
+@hooks.hook('amqp-relation-joined')
+def amqp_joined():
+    conf = hookenv.config()
+    hookenv.relation_set(username=conf['rabbit-user'], vhost=conf['rabbit-vhost'])
+
+
+@hooks.hook('amqp-relation-changed')
+def amqp_changed():
+    if 'amqp' not in configs.complete_contexts():
+        hookenv.log('amqp relation incomplete. Peer not ready?')
+        return
+    configs.write(ID_CONF_FILE_NAME)
 
 
 if __name__ == '__main__':

@@ -46,11 +46,13 @@ log = setup_logging()
 import atexit
 from keystoneclient.v2_0 import client as keystone_client
 import keystoneclient.exceptions as keystone_exceptions
+import kombu
 import os
 from simplestreams.mirrors import glance, UrlMirrorReader
 from simplestreams.objectstores.swift import SwiftObjectStore
 from simplestreams.util import read_signed, path_from_mirror_url
 import sys
+import traceback
 from urlparse import urlsplit
 import yaml
 
@@ -79,6 +81,35 @@ CRON_POLL_FILENAME = '/etc/cron.d/glance_simplestreams_sync_fastpoll'
 #   - debug keyring support
 #   - figure out what content_id is and whether we should allow users to
 #     set it
+
+try:
+    from simplestreams.util import ProgressAggregator
+    SIMPLESTREAMS_HAS_PROGRESS = True
+except ImportError:
+    class ProgressAggregator:
+        "Dummy class to allow charm to load with old simplestreams"
+    SIMPLESTREAMS_HAS_PROGRESS = False
+
+
+class StatusMessageProgressAggregator(ProgressAggregator):
+    def __init__(self, remaining_items, send_status_message):
+        super(StatusMessageProgressAggregator, self).__init__(remaining_items)
+        self.send_status_message = send_status_message
+
+    def emit(self, progress):
+        size = float(progress['size'])
+        written = float(progress['written'])
+        cur = self.total_image_count - len(self.remaining_items) + 1
+        totpct = float(self.total_written) / self.total_size
+        msg = "{name} {filepct:.0%}\n"\
+              "({cur} of {tot} images) total: "\
+              "{totpct:.0%}".format(name=progress['name'],
+                                    filepct=(written / size),
+                                    cur=cur,
+                                    tot=self.total_image_count,
+                                    totpct=totpct)
+        self.send_status_message(dict(status="Syncing",
+                                      message=msg))
 
 
 def policy(content, path):
@@ -127,7 +158,7 @@ def set_openstack_env(id_conf, charm_conf):
     os.environ['OS_REGION_NAME'] = charm_conf['region']
 
 
-def do_sync(charm_conf):
+def do_sync(charm_conf, send_status_message):
 
     for mirror_info in charm_conf['mirror_list']:
         mirror_url, initial_path = path_from_mirror_url(mirror_info['url'],
@@ -152,8 +183,24 @@ def do_sync(charm_conf):
                   'cloud_name': charm_conf['cloud_name'],
                   'item_filters': mirror_info['item_filters']}
 
-        tmirror = glance.GlanceMirror(config=config, objectstore=store,
-                                      name_prefix=charm_conf['name_prefix'])
+        mirror_args = dict(config=config, objectstore=store,
+                           name_prefix=charm_conf['name_prefix'])
+
+        if SIMPLESTREAMS_HAS_PROGRESS:
+            log.info("Calling DryRun mirror to get item list")
+
+            drmirror = glance.ItemInfoDryRunMirror(config=config,
+                                                   objectstore=store)
+            drmirror.sync(smirror, path=initial_path)
+            p = StatusMessageProgressAggregator(drmirror.items,
+                                                send_status_message)
+            mirror_args['progress_callback'] = p.progress_callback
+        else:
+            log.info("Detected simplestreams version without progress"
+                     " update support. Only limited feedback available.")
+
+        tmirror = glance.GlanceMirror(**mirror_args)
+
         log.info("calling GlanceMirror.sync")
         tmirror.sync(smirror, path=initial_path)
 
@@ -237,12 +284,39 @@ def update_product_streams_service(ksc, services, region):
     ksc.endpoints.create(**create_args)
 
 
+def setup_rabbit_connection(id_conf):
+    hosts = id_conf.get('rabbit_hosts', None)
+    if hosts is not None:
+        host = hosts[0]
+    else:
+        host = id_conf['rabbit_host']
+
+    url = "amqp://{}:{}@{}/{}".format(id_conf['rabbit_userid'],
+                                      id_conf['rabbit_password'],
+                                      host,
+                                      id_conf['rabbit_virtual_host'])
+
+    conn = kombu.BrokerConnection(url)
+    status_message_exchange = kombu.Exchange("glance-simplestreams-sync-status")
+    status_message_queue = kombu.Queue("glance-simplestreams-sync-status",
+                                       exchange=status_message_exchange)
+
+    status_message_queue(conn.channel()).declare()
+
+    def send_status_message(msg):
+        with conn.Producer(exchange=status_message_exchange) as producer:
+            producer.publish(msg)
+
+    return conn, send_status_message
+
+
 def cleanup():
     try:
         os.unlink(SYNC_RUNNING_FLAG_FILE_NAME)
     except OSError as e:
         if e.errno != 2:
             raise e
+
 
 if __name__ == "__main__":
 
@@ -288,9 +362,24 @@ if __name__ == "__main__":
         log.info("Not updating product streams service.")
 
     should_delete_cron_poll = True
+
+    try:
+        conn, send_status_message = setup_rabbit_connection(id_conf)
+    except:
+        log.exception("Could not set up rabbit connection."
+                      " Continuing without status update support")
+        conn = None
+        send_status_message = lambda _: None
+
     try:
         log.info("Beginning image sync")
-        do_sync(charm_conf)
+
+        send_status_message({"status": "Started",
+                             "message": "Sync starting."})
+        do_sync(charm_conf, send_status_message)
+        send_status_message({"status": "Done",
+                             "message": "Sync done."})
+
     except keystone_exceptions.EndpointNotFound as e:
         # matching string "{PublicURL} endpoint for {type}{region} not
         # found".  where {type} is 'image' and {region} is potentially
@@ -298,8 +387,14 @@ if __name__ == "__main__":
         if 'endpoint for image' in e.message:
             should_delete_cron_poll = False
             log.info("Glance endpoint not found, will continue polling.")
+
     except Exception as e:
         log.exception("Exception during do_sync")
+        send_status_message({"status": "Error",
+                             "message": traceback.format_exc()})
+
+    if conn:
+        conn.close()
 
     if os.path.exists(CRON_POLL_FILENAME) and should_delete_cron_poll:
         os.unlink(CRON_POLL_FILENAME)
