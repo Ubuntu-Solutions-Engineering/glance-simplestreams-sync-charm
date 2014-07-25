@@ -52,6 +52,7 @@ from simplestreams.mirrors import glance, UrlMirrorReader
 from simplestreams.objectstores.swift import SwiftObjectStore
 from simplestreams.util import read_signed, path_from_mirror_url
 import sys
+import time
 import traceback
 from urlparse import urlsplit
 import yaml
@@ -377,8 +378,9 @@ if __name__ == "__main__":
         send_status_message({"status": "Started",
                              "message": "Sync starting."})
         do_sync(charm_conf, send_status_message)
+        ts = time.strftime("%x %X")
         send_status_message({"status": "Done",
-                             "message": "Sync done."})
+                             "message": "Sync completed at {}".format(ts)})
 
     except keystone_exceptions.EndpointNotFound as e:
         # matching string "{PublicURL} endpoint for {type}{region} not
