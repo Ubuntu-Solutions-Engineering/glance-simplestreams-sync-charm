@@ -298,14 +298,14 @@ def setup_rabbit_connection(id_conf):
                                       id_conf['rabbit_virtual_host'])
 
     conn = kombu.BrokerConnection(url)
-    status_message_exchange = kombu.Exchange("glance-simplestreams-sync-status")
+    status_exchange = kombu.Exchange("glance-simplestreams-sync-status")
     status_message_queue = kombu.Queue("glance-simplestreams-sync-status",
-                                       exchange=status_message_exchange)
+                                       exchange=status_exchange)
 
     status_message_queue(conn.channel()).declare()
 
     def send_status_message(msg):
-        with conn.Producer(exchange=status_message_exchange) as producer:
+        with conn.Producer(exchange=status_exchange) as producer:
             producer.publish(msg)
 
     return conn, send_status_message
