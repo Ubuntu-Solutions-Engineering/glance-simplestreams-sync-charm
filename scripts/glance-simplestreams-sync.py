@@ -52,6 +52,7 @@ from simplestreams.mirrors import glance, UrlMirrorReader
 from simplestreams.objectstores.swift import SwiftObjectStore
 from simplestreams.util import read_signed, path_from_mirror_url
 import sys
+import time
 import traceback
 from urlparse import urlsplit
 import yaml
@@ -297,14 +298,14 @@ def setup_rabbit_connection(id_conf):
                                       id_conf['rabbit_virtual_host'])
 
     conn = kombu.BrokerConnection(url)
-    status_message_exchange = kombu.Exchange("glance-simplestreams-sync-status")
+    status_exchange = kombu.Exchange("glance-simplestreams-sync-status")
     status_message_queue = kombu.Queue("glance-simplestreams-sync-status",
-                                       exchange=status_message_exchange)
+                                       exchange=status_exchange)
 
     status_message_queue(conn.channel()).declare()
 
     def send_status_message(msg):
-        with conn.Producer(exchange=status_message_exchange) as producer:
+        with conn.Producer(exchange=status_exchange) as producer:
             producer.publish(msg)
 
     return conn, send_status_message
@@ -377,8 +378,9 @@ if __name__ == "__main__":
         send_status_message({"status": "Started",
                              "message": "Sync starting."})
         do_sync(charm_conf, send_status_message)
+        ts = time.strftime("%x %X")
         send_status_message({"status": "Done",
-                             "message": "Sync done."})
+                             "message": "Sync completed at {}".format(ts)})
 
     except keystone_exceptions.EndpointNotFound as e:
         # matching string "{PublicURL} endpoint for {type}{region} not

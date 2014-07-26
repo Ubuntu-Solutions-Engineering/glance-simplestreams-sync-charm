@@ -28,7 +28,6 @@ import shutil
 
 from charmhelpers.fetch import apt_install, add_source, apt_update
 from charmhelpers.core import hookenv
-from charmhelpers.fetch import apt_install
 from charmhelpers.payload.execd import execd_preinstall
 
 from charmhelpers.contrib.openstack.context import (AMQPContext,
