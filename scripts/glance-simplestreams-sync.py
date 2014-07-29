@@ -326,7 +326,7 @@ class StatusExchange:
             self.conn = kombu.BrokerConnection(url)
             self.exchange = kombu.Exchange("glance-simplestreams-sync-status")
             status_queue = kombu.Queue("glance-simplestreams-sync-status",
-                                       exchange=status_exchange)
+                                       exchange=self.exchange)
 
             status_queue(self.conn.channel()).declare()
 
