@@ -159,7 +159,7 @@ def set_openstack_env(id_conf, charm_conf):
     os.environ['OS_REGION_NAME'] = charm_conf['region']
 
 
-def do_sync(charm_conf, send_status_message):
+def do_sync(charm_conf, status_exchange):
 
     for mirror_info in charm_conf['mirror_list']:
         mirror_url, initial_path = path_from_mirror_url(mirror_info['url'],
@@ -194,7 +194,7 @@ def do_sync(charm_conf, send_status_message):
                                                    objectstore=store)
             drmirror.sync(smirror, path=initial_path)
             p = StatusMessageProgressAggregator(drmirror.items,
-                                                send_status_message)
+                                                status_exchange.send_message)
             mirror_args['progress_callback'] = p.progress_callback
         else:
             log.info("Detected simplestreams version without progress"
@@ -285,30 +285,69 @@ def update_product_streams_service(ksc, services, region):
     ksc.endpoints.create(**create_args)
 
 
-def setup_rabbit_connection(id_conf):
-    hosts = id_conf.get('rabbit_hosts', None)
-    if hosts is not None:
-        host = hosts[0]
-    else:
-        host = id_conf['rabbit_host']
+class StatusExchange:
+    """Wrapper for rabbitmq status exchange connection.
 
-    url = "amqp://{}:{}@{}/{}".format(id_conf['rabbit_userid'],
-                                      id_conf['rabbit_password'],
-                                      host,
-                                      id_conf['rabbit_virtual_host'])
+    If no connection exists, this attempts to create a connection
+    before sending each message.
+    """
 
-    conn = kombu.BrokerConnection(url)
-    status_exchange = kombu.Exchange("glance-simplestreams-sync-status")
-    status_message_queue = kombu.Queue("glance-simplestreams-sync-status",
-                                       exchange=status_exchange)
+    def __init__(self):
+        self.conn = None
+        self.exchange = None
 
-    status_message_queue(conn.channel()).declare()
+        self._setup_connection()
 
-    def send_status_message(msg):
-        with conn.Producer(exchange=status_exchange) as producer:
+    def _setup_connection(self):
+        """Returns True if a valid connection exists already, or if one can be
+        created."""
+
+        if self.conn:
+            return True
+
+        id_conf = read_conf(ID_CONF_FILE_NAME)
+
+        hosts = id_conf.get('rabbit_hosts', None)
+        if hosts is not None:
+            host = hosts[0]
+        else:
+            host = id_conf.get('rabbit_host', None)
+
+        if host is None:
+            log.warning("no host info in configuration, can't set up rabbit.")
+            return False
+
+        try:
+            url = "amqp://{}:{}@{}/{}".format(id_conf['rabbit_userid'],
+                                              id_conf['rabbit_password'],
+                                              host,
+                                              id_conf['rabbit_virtual_host'])
+
+            self.conn = kombu.BrokerConnection(url)
+            self.exchange = kombu.Exchange("glance-simplestreams-sync-status")
+            status_queue = kombu.Queue("glance-simplestreams-sync-status",
+                                       exchange=self.exchange)
+
+            status_queue(self.conn.channel()).declare()
+
+        except:
+            log.exception("Exception during kombu setup")
+            return False
+
+        return True
+
+    def send_message(self, msg):
+        if not self._setup_connection():
+            log.warning("No rabbitmq connection available for msg"
+                        "{}. Message will be lost.".format(str(msg)))
+            return
+
+        with self.conn.Producer(exchange=self.exchange) as producer:
             producer.publish(msg)
 
-    return conn, send_status_message
+    def close(self):
+        if self.conn:
+            self.conn.close()
 
 
 def cleanup():
@@ -319,7 +358,7 @@ def cleanup():
             raise e
 
 
-if __name__ == "__main__":
+def main():
 
     log.info("glance-simplestreams-sync started.")
 
@@ -364,23 +403,18 @@ if __name__ == "__main__":
 
     should_delete_cron_poll = True
 
-    try:
-        conn, send_status_message = setup_rabbit_connection(id_conf)
-    except:
-        log.exception("Could not set up rabbit connection."
-                      " Continuing without status update support")
-        conn = None
-        send_status_message = lambda _: None
+    status_exchange = StatusExchange()
 
     try:
         log.info("Beginning image sync")
 
-        send_status_message({"status": "Started",
-                             "message": "Sync starting."})
-        do_sync(charm_conf, send_status_message)
+        status_exchange.send_message({"status": "Started",
+                                      "message": "Sync starting."})
+        do_sync(charm_conf, status_exchange)
         ts = time.strftime("%x %X")
-        send_status_message({"status": "Done",
-                             "message": "Sync completed at {}".format(ts)})
+        completed_msg = "Sync completed at {}".format(ts)
+        status_exchange.send_message({"status": "Done",
+                                      "message": completed_msg})
 
     except keystone_exceptions.EndpointNotFound as e:
         # matching string "{PublicURL} endpoint for {type}{region} not
@@ -392,13 +426,16 @@ if __name__ == "__main__":
 
     except Exception as e:
         log.exception("Exception during do_sync")
-        send_status_message({"status": "Error",
-                             "message": traceback.format_exc()})
+        status_exchange.send_message({"status": "Error",
+                                      "message": traceback.format_exc()})
 
-    if conn:
-        conn.close()
+    status_exchange.close()
 
     if os.path.exists(CRON_POLL_FILENAME) and should_delete_cron_poll:
         os.unlink(CRON_POLL_FILENAME)
         log.info("Initial sync attempt done. every-minute cronjob removed.")
     log.info("sync done.")
+
+
+if __name__ == "__main__":
+    main()
