@@ -292,10 +292,9 @@ class StatusExchange:
     before sending each message.
     """
 
-    def __init__(self, id_conf):
+    def __init__(self):
         self.conn = None
         self.exchange = None
-        self.id_conf = id_conf
 
         self._setup_connection()
 
@@ -305,6 +304,8 @@ class StatusExchange:
 
         if self.conn:
             return True
+
+        id_conf = read_conf(ID_CONF_FILE_NAME)
 
         hosts = id_conf.get('rabbit_hosts', None)
         if hosts is not None:
@@ -402,7 +403,7 @@ if __name__ == "__main__":
 
     should_delete_cron_poll = True
 
-    status_exchange = StatusExchange(id_conf)
+    status_exchange = StatusExchange()
 
     try:
         log.info("Beginning image sync")
