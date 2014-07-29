@@ -358,7 +358,7 @@ def cleanup():
             raise e
 
 
-if __name__ == "__main__":
+def main():
 
     log.info("glance-simplestreams-sync started.")
 
@@ -435,3 +435,7 @@ if __name__ == "__main__":
         os.unlink(CRON_POLL_FILENAME)
         log.info("Initial sync attempt done. every-minute cronjob removed.")
     log.info("sync done.")
+
+
+if __name__ == "__main__":
+    main()
