@@ -44,6 +44,7 @@ log = setup_logging()
 
 
 import atexit
+import glanceclient
 from keystoneclient.v2_0 import client as keystone_client
 import keystoneclient.exceptions as keystone_exceptions
 import kombu
@@ -423,6 +424,11 @@ def main():
         if 'endpoint for image' in e.message:
             should_delete_cron_poll = False
             log.info("Glance endpoint not found, will continue polling.")
+
+    except glanceclient.exc.ClientException as e:
+        log.exception("Glance Client exception during do_sync."
+                      " will continue polling.")
+        should_delete_cron_poll = False
 
     except Exception as e:
         log.exception("Exception during do_sync")
