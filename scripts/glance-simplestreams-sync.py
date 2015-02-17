@@ -44,6 +44,7 @@ log = setup_logging()
 
 
 import atexit
+import fcntl
 import glanceclient
 from keystoneclient.v2_0 import client as keystone_client
 import keystoneclient.exceptions as keystone_exceptions
@@ -60,10 +61,12 @@ import yaml
 
 KEYRING = '/usr/share/keyrings/ubuntu-cloudimage-keyring.gpg'
 CONF_FILE_DIR = '/etc/glance-simplestreams-sync'
+PID_FILE_DIR = '/var/run'
 CHARM_CONF_FILE_NAME = os.path.join(CONF_FILE_DIR, 'mirrors.yaml')
 ID_CONF_FILE_NAME = os.path.join(CONF_FILE_DIR, 'identity.yaml')
 
-SYNC_RUNNING_FLAG_FILE_NAME = os.path.join(CONF_FILE_DIR, 'sync-running.pid')
+SYNC_RUNNING_FLAG_FILE_NAME = os.path.join(PID_FILE_DIR,
+                                           'glance-simplestreams-sync.pid')
 
 # juju looks in simplestreams/data/* in swift to figure out which
 # images to deploy, so this path isn't really configurable even though
@@ -363,14 +366,16 @@ def main():
 
     log.info("glance-simplestreams-sync started.")
 
-    if os.path.exists(SYNC_RUNNING_FLAG_FILE_NAME):
-        log.info("sync started while pidfile exists, exiting")
-        sys.exit(0)
-
     atexit.register(cleanup)
 
-    with open(SYNC_RUNNING_FLAG_FILE_NAME, 'w') as f:
-        f.write(str(os.getpid()))
+    lockfile = open(SYNC_RUNNING_FLAG_FILE_NAME, 'w')
+    try:
+        fcntl.flock(lockfile, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except IOError:
+        log.info("{} is locked, exiting".format(SYNC_RUNNING_FLAG_FILE_NAME))
+        sys.exit(0)
+
+    lockfile.write(str(os.getpid()))
 
     id_conf, charm_conf = get_conf()
 
