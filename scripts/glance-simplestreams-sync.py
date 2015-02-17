@@ -215,7 +215,7 @@ def update_product_streams_service(ksc, services, region):
     swift_services = [s for s in services
                       if s['name'] == 'swift']
     if len(swift_services) != 1:
-        log.error("found %d swift services. expecting one."
+        log.error("found {} swift services. expecting one."
                   " - not updating endpoint.".format(len(swift_services)))
         return
 
@@ -227,7 +227,7 @@ def update_product_streams_service(ksc, services, region):
     swift_endpoints = [e for e in endpoints
                        if e['service_id'] == swift_service_id]
     if len(swift_endpoints) != 1:
-        log.warning("found %d swift endpoints, expecting one - not"
+        log.warning("found {} swift endpoints, expecting one - not"
                     " updating product-streams"
                     " endpoint.".format(len(swift_endpoints)))
         return
@@ -237,7 +237,7 @@ def update_product_streams_service(ksc, services, region):
     ps_services = [s for s in services
                    if s['name'] == PRODUCT_STREAMS_SERVICE_NAME]
     if len(ps_services) != 1:
-        log.error("found %d product-streams services. expecting one."
+        log.error("found {} product-streams services. expecting one."
                   " - not updating endpoint.".format(len(ps_services)))
         return
 
@@ -247,9 +247,9 @@ def update_product_streams_service(ksc, services, region):
                     if e['service_id'] == ps_service_id]
 
     if len(ps_endpoints) != 1:
-        log.warning("found %d product-streams endpoints in region {},"
+        log.warning("found {} product-streams endpoints in region {},"
                     " expecting one - not updating"
-                    " endpoint".format(region,
+                    " endpoint".format(ps_endpoints, region,
                                        len(ps_endpoints)))
         return
 
@@ -260,7 +260,7 @@ def update_product_streams_service(ksc, services, region):
                            if t.name == 'services']
 
     if len(services_tenant_ids) != 1:
-        log.warning("found %d tenants named 'services',"
+        log.warning("found {} tenants named 'services',"
                     " expecting one. Not updating"
                     " endpoint".format(len(services_tenant_ids)))
 
