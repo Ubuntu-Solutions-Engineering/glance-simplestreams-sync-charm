@@ -124,6 +124,20 @@ def policy(content, path):
         return content
 
 
+def set_juju_env():
+    proxy_filename = os.path.expanduser("~/.juju-proxy")
+    if not os.path.exists(proxy_filename):
+        return
+
+    with open(proxy_filename, 'r') as f:
+        lines = [l.strip() for l in f.readlines()]
+        for line in lines:
+            # lines are 'export var=val'.
+            export_ignored, env = line.split(' ', 1)
+            k, v = env.split('=', 1)
+            os.environ[k] = v
+
+
 def read_conf(filename):
     with open(filename) as f:
         confobj = yaml.load(f)
@@ -376,6 +390,8 @@ def main():
         sys.exit(0)
 
     lockfile.write(str(os.getpid()))
+
+    set_juju_env()
 
     id_conf, charm_conf = get_conf()
 
