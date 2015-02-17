@@ -227,6 +227,7 @@ def config_changed():
             install_cron_script()
     config.save()
 
+
 @hooks.hook('upgrade-charm')
 def upgrade_charm():
     install()
@@ -236,7 +237,8 @@ def upgrade_charm():
 @hooks.hook('amqp-relation-joined')
 def amqp_joined():
     conf = hookenv.config()
-    hookenv.relation_set(username=conf['rabbit-user'], vhost=conf['rabbit-vhost'])
+    hookenv.relation_set(username=conf['rabbit-user'],
+                         vhost=conf['rabbit-vhost'])
 
 
 @hooks.hook('amqp-relation-changed')
