@@ -99,13 +99,25 @@ class MirrorsConfigServiceContext(OSContextGenerator):
                     cloud_name=config['cloud_name'])
 
 
+class JujuProxyContext(OSContextGenerator):
+    """Context for http(s)-proxy and no-proxy juju environment settings"""
+
+    def __call__(self):
+        d = {}
+        for v in ['http_proxy', 'https_proxy', 'no_proxy']:
+            if v in os.environ:
+                d[v] = os.environ[v]
+        return d
+
+
 release = get_os_codename_package('glance-common', fatal=False) or 'icehouse'
 configs = OSConfigRenderer(templates_dir='templates/',
                            openstack_release=release)
 
 configs.register(MIRRORS_CONF_FILE_NAME, [MirrorsConfigServiceContext()])
 configs.register(ID_CONF_FILE_NAME, [IdentityServiceContext(),
-                                     AMQPContext()])
+                                     AMQPContext(),
+                                     JujuProxyContext()])
 
 
 def install_cron_script():

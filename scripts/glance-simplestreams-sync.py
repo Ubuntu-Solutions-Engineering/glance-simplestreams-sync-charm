@@ -124,20 +124,6 @@ def policy(content, path):
         return content
 
 
-def set_juju_env():
-    proxy_filename = os.path.expanduser("~/.juju-proxy")
-    if not os.path.exists(proxy_filename):
-        return
-
-    with open(proxy_filename, 'r') as f:
-        lines = [l.strip() for l in f.readlines()]
-        for line in lines:
-            # lines are 'export var=val'.
-            export_ignored, env = line.split(' ', 1)
-            k, v = env.split('=', 1)
-            os.environ[k] = v
-
-
 def read_conf(filename):
     with open(filename) as f:
         confobj = yaml.load(f)
@@ -163,6 +149,14 @@ def get_conf():
         sys.exit(1)
 
     return id_conf, charm_conf
+
+
+def set_proxy_env(id_conf):
+    for env in ['http_proxy', 'https_proxy', 'no_proxy']:
+        if env not in id_conf:
+            continue
+        os.environ[env] = id_conf[env]
+        os.environ[env.upper()] = id_conf[env]
 
 
 def set_openstack_env(id_conf, charm_conf):
@@ -391,9 +385,9 @@ def main():
 
     lockfile.write(str(os.getpid()))
 
-    set_juju_env()
-
     id_conf, charm_conf = get_conf()
+
+    set_proxy_env(id_conf)
 
     set_openstack_env(id_conf, charm_conf)
 

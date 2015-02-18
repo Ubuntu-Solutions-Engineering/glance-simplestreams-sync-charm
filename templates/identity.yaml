@@ -30,3 +30,15 @@ kombu_ssl_ca_certs: {{ rabbit_ssl_ca }}
 {% endif -%}
 {% endif -%}
 {% endif -%}
+
+{% if http_proxy -%}
+http_proxy: {{ http_proxy }}
+{% endif -%}
+
+{% if https_proxy -%}
+https_proxy: {{ https_proxy }}
+{% endif -%}
+
+{% if no_proxy -%}
+no_proxy: {{ no_proxy }}
+{% endif -%}
