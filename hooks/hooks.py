@@ -213,6 +213,7 @@ def config_changed():
     hookenv.log('begin config-changed hook.')
 
     configs.write(MIRRORS_CONF_FILE_NAME)
+    configs.write(ID_CONF_FILE_NAME)
 
     config = hookenv.config()
 
