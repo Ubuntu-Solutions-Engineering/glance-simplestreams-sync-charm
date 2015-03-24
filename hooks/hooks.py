@@ -42,7 +42,8 @@ USR_SHARE_DIR = '/usr/share/glance-simplestreams-sync'
 MIRRORS_CONF_FILE_NAME = os.path.join(CONF_FILE_DIR, 'mirrors.yaml')
 ID_CONF_FILE_NAME = os.path.join(CONF_FILE_DIR, 'identity.yaml')
 
-SCRIPT_NAME = "glance-simplestreams-sync.py"
+SYNC_SCRIPT_NAME = "glance-simplestreams-sync.py"
+SCRIPT_WRAPPER_NAME = "glance-simplestreams-sync.sh"
 
 CRON_JOB_FILENAME = 'glance_simplestreams_sync'
 CRON_POLL_FILENAME = 'glance_simplestreams_sync_fastpoll'
@@ -115,11 +116,11 @@ def install_cron_script():
     up-to-date.
 
     """
-    sync_script_source = os.path.join("scripts", SCRIPT_NAME)
-    shutil.copy(sync_script_source, USR_SHARE_DIR)
+    for fn in [SYNC_SCRIPT_NAME, SCRIPT_WRAPPER_NAME]:
+        shutil.copy(os.path.join("scripts", fn), USR_SHARE_DIR)
 
     config = hookenv.config()
-    installed_script = os.path.join(USR_SHARE_DIR, SCRIPT_NAME)
+    installed_script = os.path.join(USR_SHARE_DIR, SCRIPT_WRAPPER_NAME)
     linkname = '/etc/cron.{f}/{s}'.format(f=config['frequency'],
                                           s=CRON_JOB_FILENAME)
     os.symlink(installed_script, linkname)
@@ -227,6 +228,7 @@ def config_changed():
             install_cron_script()
     config.save()
 
+
 @hooks.hook('upgrade-charm')
 def upgrade_charm():
     install()
@@ -236,7 +238,8 @@ def upgrade_charm():
 @hooks.hook('amqp-relation-joined')
 def amqp_joined():
     conf = hookenv.config()
-    hookenv.relation_set(username=conf['rabbit-user'], vhost=conf['rabbit-vhost'])
+    hookenv.relation_set(username=conf['rabbit-user'],
+                         vhost=conf['rabbit-vhost'])
 
 
 @hooks.hook('amqp-relation-changed')

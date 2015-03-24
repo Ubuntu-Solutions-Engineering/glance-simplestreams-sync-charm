@@ -44,6 +44,7 @@ log = setup_logging()
 
 
 import atexit
+import fcntl
 import glanceclient
 from keystoneclient.v2_0 import client as keystone_client
 import keystoneclient.exceptions as keystone_exceptions
@@ -60,10 +61,12 @@ import yaml
 
 KEYRING = '/usr/share/keyrings/ubuntu-cloudimage-keyring.gpg'
 CONF_FILE_DIR = '/etc/glance-simplestreams-sync'
+PID_FILE_DIR = '/var/run'
 CHARM_CONF_FILE_NAME = os.path.join(CONF_FILE_DIR, 'mirrors.yaml')
 ID_CONF_FILE_NAME = os.path.join(CONF_FILE_DIR, 'identity.yaml')
 
-SYNC_RUNNING_FLAG_FILE_NAME = os.path.join(CONF_FILE_DIR, 'sync-running.pid')
+SYNC_RUNNING_FLAG_FILE_NAME = os.path.join(PID_FILE_DIR,
+                                           'glance-simplestreams-sync.pid')
 
 # juju looks in simplestreams/data/* in swift to figure out which
 # images to deploy, so this path isn't really configurable even though
@@ -215,7 +218,7 @@ def update_product_streams_service(ksc, services, region):
     swift_services = [s for s in services
                       if s['name'] == 'swift']
     if len(swift_services) != 1:
-        log.error("found %d swift services. expecting one."
+        log.error("found {} swift services. expecting one."
                   " - not updating endpoint.".format(len(swift_services)))
         return
 
@@ -227,7 +230,7 @@ def update_product_streams_service(ksc, services, region):
     swift_endpoints = [e for e in endpoints
                        if e['service_id'] == swift_service_id]
     if len(swift_endpoints) != 1:
-        log.warning("found %d swift endpoints, expecting one - not"
+        log.warning("found {} swift endpoints, expecting one - not"
                     " updating product-streams"
                     " endpoint.".format(len(swift_endpoints)))
         return
@@ -237,7 +240,7 @@ def update_product_streams_service(ksc, services, region):
     ps_services = [s for s in services
                    if s['name'] == PRODUCT_STREAMS_SERVICE_NAME]
     if len(ps_services) != 1:
-        log.error("found %d product-streams services. expecting one."
+        log.error("found {} product-streams services. expecting one."
                   " - not updating endpoint.".format(len(ps_services)))
         return
 
@@ -247,9 +250,9 @@ def update_product_streams_service(ksc, services, region):
                     if e['service_id'] == ps_service_id]
 
     if len(ps_endpoints) != 1:
-        log.warning("found %d product-streams endpoints in region {},"
+        log.warning("found {} product-streams endpoints in region {},"
                     " expecting one - not updating"
-                    " endpoint".format(region,
+                    " endpoint".format(ps_endpoints, region,
                                        len(ps_endpoints)))
         return
 
@@ -260,7 +263,7 @@ def update_product_streams_service(ksc, services, region):
                            if t.name == 'services']
 
     if len(services_tenant_ids) != 1:
-        log.warning("found %d tenants named 'services',"
+        log.warning("found {} tenants named 'services',"
                     " expecting one. Not updating"
                     " endpoint".format(len(services_tenant_ids)))
 
@@ -363,14 +366,16 @@ def main():
 
     log.info("glance-simplestreams-sync started.")
 
-    if os.path.exists(SYNC_RUNNING_FLAG_FILE_NAME):
-        log.info("sync started while pidfile exists, exiting")
-        sys.exit(0)
-
     atexit.register(cleanup)
 
-    with open(SYNC_RUNNING_FLAG_FILE_NAME, 'w') as f:
-        f.write(str(os.getpid()))
+    lockfile = open(SYNC_RUNNING_FLAG_FILE_NAME, 'w')
+    try:
+        fcntl.flock(lockfile, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except IOError:
+        log.info("{} is locked, exiting".format(SYNC_RUNNING_FLAG_FILE_NAME))
+        sys.exit(0)
+
+    lockfile.write(str(os.getpid()))
 
     id_conf, charm_conf = get_conf()
 
