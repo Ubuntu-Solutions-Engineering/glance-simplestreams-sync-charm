@@ -1,3 +1,9 @@
+# Development of this charm has been moved to Launchpad
+
+We are now using the same development workflow as the main Canonical-supported Openstack juju charms, and the development branch is on Launchpad here:     https://code.launchpad.net/~openstack-charmers/charms/trusty/glance-simplestreams-sync/next
+
+No pull requests will be accepted here, please use Launchpad MPs and bzr.
+
 # Overview
 
 This charm provides a service that syncs your OpenStack cloud's
